@@ -1,0 +1,430 @@
+---
+title: "ECS markers in oligodendrocyte development"
+author: "Diego M. Coelho"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    css: "mcblab-style.css"
+    self-contained: true
+    theme: cosmo  # optional
+    sidebar:
+      style: "floating"  # or "docked", depending on your preference
+      collapse-level: 1
+      search: true
+editor: visual
+---
+
+------------------------------------------------------------------------
+
+![](https://mcblab.github.io/images/logos/lab_icon_long.png){width="200px"} This analysis was performed by [MCB Lab](https://mcblab.github.io/).
+
+```{r libraries}
+#| echo: false
+#| warning: false
+
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+
+```
+
+```{r processing}
+#| echo: false
+#| eval: false
+#| warning: false
+
+library(scDblFinder)
+
+# Input can be found:
+# https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE255405
+
+GSM_p2_cortex <- ReadMtx(mtx = "GSE255405_RAW/GSM8072107_P2_cortex_matrix.mtx.gz",
+                         cells = "GSE255405_RAW/GSM8072107_P2_cortex_barcodes.tsv.gz",
+                         features = "GSE255405_RAW/GSM8072107_P2_cortex_features.tsv.gz")
+
+GSM_p2_cortex <- CreateSeuratObject(GSM_p2_cortex, min.cells = 3, min.features = 2)
+GSM_p2_cortex@meta.data$time <- "P2"
+GSM_p2_cortex@meta.data$area <- "cortex"
+
+GSM_p7_cortex <- ReadMtx(mtx = "GSE255405_RAW/GSM8072108_P7_cortex_matrix.mtx.gz",
+                         cells = "GSE255405_RAW/GSM8072108_P7_cortex_barcodes.tsv.gz",
+                         features = "GSE255405_RAW/GSM8072108_P7_cortex_features.tsv.gz")
+
+GSM_p7_cortex <- CreateSeuratObject(GSM_p7_cortex, min.cells = 3, min.features = 2)
+GSM_p7_cortex@meta.data$time <- "P7"
+GSM_p7_cortex@meta.data$area <- "cortex"
+
+GSM_p7_svz <- ReadMtx(mtx = "GSE255405_RAW/GSM8072109_P7_SVZ_matrix.mtx.gz",
+                         cells = "GSE255405_RAW/GSM8072109_P7_SVZ_barcodes.tsv.gz",
+                       features = "GSE255405_RAW/GSM8072109_P7_SVZ_features.tsv.gz")
+
+GSM_p7_svz <- CreateSeuratObject(GSM_p7_svz, min.cells = 3, min.features = 2)
+GSM_p7_svz@meta.data$time <- "P7"
+GSM_p7_svz@meta.data$area <- "SVZ"
+
+# Joined version
+GSE255405@meta.data$time_area <- paste0(GSE255405@meta.data$time, "_", GSE255405@meta.data$area)
+
+# Joining layers
+GSE255405 <- merge(GSM_p2_cortex, list(GSM_p7_cortex, GSM_p7_svz), project = "GSE255405")
+GSE255405 <- JoinLayers(GSE255405)
+
+# Removing mitochondrial + low features
+GSE255405[["percent.mt"]] <- PercentageFeatureSet(GSE255405, pattern = "^mt-")
+GSE255405 <- subset(GSE255405, subset = nFeature_RNA > 200 & percent.mt < 10)
+
+sce <- as.SingleCellExperiment(GSE255405)
+sce <- scDblFinder(sce)
+GSE255405$scDblFinder.class <- sce$scDblFinder.class
+
+rm(sce)
+
+GSE255405 <- subset(GSE255405, subset = scDblFinder.class == "singlet")
+
+# Normalize
+GSE255405 <- NormalizeData(GSE255405)
+GSE255405 <- FindVariableFeatures(GSE255405, selection.method = "vst", nfeatures = 2000)
+
+GSE255405 <- ScaleData(GSE255405, features = rownames(GSE255405))
+
+
+
+GSE255405 <- CellCycleScoring(GSE255405,
+                              s.features = stringr::str_to_title(cc.genes$s.genes),
+                              g2m.features = stringr::str_to_title(cc.genes$g2m.genes))
+
+GSE255405 <- RunPCA(GSE255405, features = VariableFeatures(object = GSE255405))
+
+GSE255405 <- FindNeighbors(GSE255405, dims = 1:20)
+GSE255405 <- FindClusters(GSE255405, resolution = 0.1)
+
+GSE255405 <- RunUMAP(GSE255405, dims = 1:20)
+
+DimPlot(GSE255405, label = T, pt.size = 1) | DotPlot(GSE255405, features = c("Aldh1l1", "Ascl1", "Aqp4", "Aif1", "Pdgfra", "Enpp6", "Mog", "Tbr1", "Vnn1", "Sp8", "Gad1", "Gad2", "Syt4", "Pecam1", "Foxj1", "Vtn", "Sox2")) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+GSE255405@meta.data$MainGroups <- plyr::mapvalues(GSE255405@meta.data$RNA_snn_res.0.1,
+                                                  0:15,
+                                                  c("ENs", "Astrocyte", "OPCs/OLs", "TAPs", "INs",
+                                                    "INs", "NSCs", "NSCs", "INs", "Microglia",
+                                                    "ENs", "Endothelial", "Microglia", "Pericytes", "ENs",
+                                                    "ECs"))
+
+Idents(GSE255405) <- "MainGroups"
+
+# Subset OPCs/OLs
+GSE255405_OL <- subset(GSE255405, subset = MainGroups == "OPCs/OLs")
+GSE255405_OL <- NormalizeData(GSE255405_OL)
+
+GSE255405_OL <- FindVariableFeatures(GSE255405_OL, selection.method = "vst", nfeatures = 2000)
+GSE255405_OL <- ScaleData(GSE255405_OL, features = rownames(GSE255405_OL))
+GSE255405_OL <- RunPCA(GSE255405_OL, features = VariableFeatures(object = GSE255405_OL))
+
+GSE255405_OL <- FindNeighbors(GSE255405_OL, dims = 1:20)
+GSE255405_OL <- FindClusters(GSE255405_OL, resolution = 0.5)
+
+GSE255405_OL <- RunUMAP(GSE255405_OL, dims = 1:10)
+
+DimPlot(GSE255405_OL, label = T, pt.size = 1) | DimPlot(GSE255405_OL, group.by = "area", label = T, pt.size = 1) | DimPlot(GSE255405_OL, group.by = "Phase", label = T, pt.size = 1) | DotPlot(GSE255405_OL, features = c("Pdgfra", "Mbp", "Mog", "Enpp6", "Cspg4", "Npas1", "Dll3", "Ascl1")) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+GSE255405_OL@meta.data$MainGroups <- plyr::mapvalues(GSE255405_OL@meta.data$RNA_snn_res.0.5,
+                                                  0:9,
+                                                  c("OPCs", "OPCs", "OPCs", "OLs", "OPCs",
+                                                    "OPCs", "OLs", "OLs", "OPCs", "OPCs"))
+
+GSE255405_OL@meta.data$MinorGroups <- plyr::mapvalues(GSE255405_OL@meta.data$RNA_snn_res.0.5,
+                                                  0:9,
+                                                  c("actOPCs", "actOPCs", "hOPCs", "IMyOLs", "hOPCs",
+                                                    "ProlOPCs", "IMyOLs", "MyOLs", "ProlOPCs", "ProlOPCs"))
+
+# Readding OPCs / OLs to main GSE255405
+GSE255405@meta.data$MinorGroups <- GSE255405@meta.data$MainGroups
+GSE255405@meta.data <- GSE255405@meta.data %>% filter(MainGroups != "OPCs/OLs") %>% rbind(., GSE255405_OL@meta.data)
+GSE255405@meta.data <- GSE255405@meta.data[GSE255405@graphs$RNA_snn@Dimnames[[1]],]
+
+Idents(GSE255405_OL) <- "MainGroups"
+
+GSE255405_OL.markers.SVZ <- subset(GSE255405_OL, subset = area == "SVZ") %>% FindAllMarkers(., only.pos = T)
+GSE255405_OL.markers.cortex <- subset(GSE255405_OL, subset = area != "SVZ") %>% FindAllMarkers(., only.pos = T)
+
+# Save objects
+saveRDS(GSE255405, file = "GSE255405.rds")
+saveRDS(GSE255405_OL, file = "GSE255405_OL.rds")
+
+```
+
+```{r diff}
+#| echo: false
+#| eval: false
+#| warning: false
+
+GSE255405 <- readRDS("GSE255405.rds")
+
+# Generate markers
+GSE255405.markers <- FindAllMarkers(GSE255405, only.pos = T)
+GSE255405.markers <- GSE255405.markers %>% filter(p_val_adj < 0.01)
+GSE255405.SVZ.markers <- subset(GSE255405, subset = area == "SVZ") %>% FindAllMarkers(., only.pos = T)
+GSE255405.SVZ.markers <- GSE255405.SVZ.markers %>% filter(p_val_adj < 0.01)
+GSE255405.ctx.markers <- subset(GSE255405, subset = area != "SVZ" & time == "P7") %>% FindAllMarkers(., only.pos = T)
+GSE255405.ctx.markers <- GSE255405.ctx.markers %>% filter(p_val_adj < 0.01)
+
+
+saveRDS(GSE255405.SVZ.markers, file = "GSE255405.SVZ.markers.rds")
+saveRDS(GSE255405.ctx.markers, file = "GSE255405.ctx.markers.rds")
+saveRDS(GSE255405.markers, file = "GSE255405.markers.rds")
+
+```
+
+```{r open}
+#| echo: false
+#| warning: false
+
+GSE255405 <- readRDS("GSE255405.rds")
+
+GSE255405_OL <- readRDS("GSE255405_OL.rds")
+
+markers_OL <- readRDS("GSE255405_OL.markers.rds")
+
+glu_genes <- c("Cnr1", "Cnr2", "Cspg4", "Nr3c1", "Nr3c2", "Ptges3", "Ncor1")
+
+```
+
+## Introduction
+
+Early life stress (ELS) profoundly influences brain development by altering oligodendrogenesis and myelination, processes regulated by both glucocorticoids and the endocannabinoid system (ECS). In the referenced study, maternal separation combined with corticosterone exposure accelerated oligodendrocyte lineage progression and myelin marker expression in neonatal mice. These effects were modulated by CB1 receptor activity and 2-AG signaling, highlighting ECS--HPA axis interplay in myelin plasticity. To support these findings, we used the single-cell RNA-seq dataset from Dennis et al. (2024) \[GSE237672\] to better understand the expression dynamics of ECS and glucocorticoid signaling components across oligodendrocyte lineage cells during early postnatal brain development.
+
+Dataset used can be found in [Dennis et al](https://www.sciencedirect.com/science/article/pii/S2213671124000778) publication.
+
+## Questions
+
+1)  Which cell types during early postnatal express glucorticoid receptors and canabinoid receptors as CB1 / CB2?
+2)  Does it have a specific OPCs / Oligodendrocytes groups expressing those markers?
+
+## Results
+
+Cell types were annotated following mostly protocol established by Dennis et al publication.
+
+### Which cell types during early postnatal express glucorticoid receptors and canabinoid receptors as CB1 / CB2?
+
+#### UMAP to overview annotated cell groups, time, area and cell phase.
+
+```{r fig1}
+#| echo: false
+#| fig-width: 16
+#| fig-height: 10
+
+p1 <- DimPlot(GSE255405, group.by = "MainGroups", pt.size = 1) + theme(axis.title = element_blank())
+p2 <- DimPlot(GSE255405, group.by = "time", pt.size = 1) + theme(axis.title = element_blank())
+p3 <- DimPlot(GSE255405, group.by = "area", pt.size = 1) + theme(axis.title = element_blank())
+p4 <- DimPlot(GSE255405, group.by = "Phase", pt.size = 1) + theme(axis.title = element_blank())
+
+p <- cowplot::plot_grid(plotlist = list(p1, p2, p3, p4))
+
+# pdf("figures/umap.ctx_vsvz.pdf", width = 7, height = 4)
+# p1 + labs(title = "V/SVZ + Cortex (P2/P7)")
+# dev.off()
+
+# pdf("figures/umap.ctx_vsvz.age.pdf", width = 6.5, height = 4)
+# p2 + labs(title = "V/SVZ + Cortex (P2/P7) - Age")
+# dev.off()
+
+# pdf("figures/umap.ctx_vsvz.area.pdf", width = 6.5, height = 4)
+# p3 + labs(title = "V/SVZ + Cortex (P2/P7) - Area")
+# dev.off()
+
+# pdf("figures/umap.ctx_vsvz.phase.pdf", width = 6.5, height = 4)
+# p4 + labs(title = "V/SVZ + Cortex (P2/P7) - Phase")
+# dev.off()
+
+
+p
+
+```
+
+#### Markers used by author to classify cells
+
+```{r fig2}
+#| echo: false
+#| warning: false
+#| fig-width: 8
+#| fig-height: 5
+
+p <- DotPlot(GSE255405, group.by = "MainGroups", features = c("Syt4", "Tbr1", "Aldh1l1", "Aqp4", "Ascl1", "Sp8", "Gad1", "Gad2", "Vnn1", "Sox2", "Vim", "Aif1", "Pecam1", "Vtn", "Foxj1", "Pdgfra", "Enpp6", "Mog")) +
+  theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
+
+# pdf("figures/markers.dotplot.ctx_vsvz.pdf", width = 8, height = 3.5)
+p + labs(title = "V/SVZ + Cortex (P2/P7) - Markers")
+# dev.off()
+
+
+```
+
+```{r fig3}
+#| echo: false
+#| warning: false
+#| fig-width: 15
+#| fig-height: 5
+
+# pdf("figures/nr3c1_cnrs.dotplot.ctx_vsvz.pdf", width = 8.5, height = 3.5)
+p1 <- subset(GSE255405, area != "SVZ" & time == "P2") %>%
+DotPlot(features = glu_genes, group.by = "MainGroups") + labs(title = "Cortex (P2)") +
+  theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
+p2 <- subset(GSE255405, area == "SVZ") %>%
+DotPlot(features = glu_genes, group.by = "MainGroups") + labs(title = "V/SVZ (P7)") +
+  theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
+p3 <- subset(GSE255405, area != "SVZ" & time == "P7") %>%
+DotPlot(features = glu_genes, group.by = "MainGroups") + labs(title = "Cortex (P7)") +
+  theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
+# dev.off()
+
+p1 | p2 | p3
+
+```
+
+### Does it have a specific OPCs / Oligodendrocytes groups expressing those markers?
+
+```{r fig4}
+#| echo: false
+#| warning: false
+#| fig-width: 12
+#| fig-height: 5
+
+p <- DimPlot(GSE255405_OL, group.by = "area", label = T, pt.size = 1) | DimPlot(GSE255405_OL, group.by = "MainGroups", pt.size = 1) | DimPlot(GSE255405_OL, group.by = "MinorGroups", pt.size = 1)
+
+p
+
+```
+
+```{r fig5}
+#| echo: false
+#| warning: false
+#| fig-width: 15
+#| fig-height: 5
+
+# pdf("figures/nr3c1_cnrs.dotplot.ctx_vsvz.pdf", width = 8.5, height = 3.5)
+p1 <- subset(GSE255405_OL, area != "SVZ" & time == "P2") %>%
+DotPlot(features = glu_genes, group.by = "MinorGroups") + labs(title = "Cortex (P2)") +
+  theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
+p2 <- subset(GSE255405_OL, area == "SVZ") %>%
+DotPlot(features = glu_genes, group.by = "MinorGroups") + labs(title = "V/SVZ (P7)") +
+  theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
+p3 <- subset(GSE255405_OL, area != "SVZ" & time == "P7") %>%
+DotPlot(features = glu_genes, group.by = "MinorGroups") + labs(title = "Cortex (P7)") +
+  theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
+# dev.off()
+
+p1 | p2 | p3
+
+```
+
+```{r deprecated}
+#| echo: false
+#| eval: false
+#| warning: false
+
+GSE255405_OL <- readRDS("GSE255405_OL.rds")
+
+GSE255405_OL_SVZ <- subset(GSE255405_OL, subset = area == "SVZ")
+
+GSE255405_OL_SVZ <- SeuratObject::UpdateSeuratObject(GSE255405_OL_SVZ)
+
+seurat_obj <- SetupForWGCNA(
+  GSE255405_OL_SVZ,
+  gene_select = "fraction", # the gene selection approach
+  fraction = 0.05, # fraction of cells that a gene needs to be expressed in order to be included
+  wgcna_name = "OPCs/OLs" # the name of the hdWGCNA experiment
+)
+
+# construct metacells  in each group
+seurat_obj <- MetacellsByGroups(
+  seurat_obj = seurat_obj, min_cells = 50,
+  group.by = c("MainGroups"), # specify the columns in seurat_obj@meta.data to group by
+  reduction = 'pca', # select the dimensionality reduction to perform KNN on
+  k = 25, # nearest-neighbors parameter
+  max_shared = 10, # maximum number of shared cells between two metacells
+  ident.group = 'MainGroups' # set the Idents of the metacell seurat object
+)
+
+# normalize metacell expression matrix:
+seurat_obj <- NormalizeMetacells(seurat_obj)
+
+seurat_obj <- SetDatExpr(
+  seurat_obj,
+  group_name = "hOPCs",
+  group.by = "MainGroups",
+  assay = 'RNA', # using RNA assay
+  layer = 'data' # using normalized data
+)
+
+# Test different soft powers:
+seurat_obj <- TestSoftPowers(
+  seurat_obj,
+  networkType = 'signed' # you can also use "unsigned" or "signed hybrid"
+)
+
+# plot the results:
+plot_list <- PlotSoftPowers(seurat_obj)
+
+cowplot::plot_grid(plotlist = plot_list)
+
+power_table <- GetPowerTable(seurat_obj)
+
+saveRDS(seurat_obj, "GSE255405_OL_SVZ.rds")
+
+# seurat_obj <- readRDS("GSE255405_OL_SVZ.rds")
+
+seurat_obj <- ConstructNetwork(seurat_obj, tom_name = "hOPCs")
+
+PlotDendrogram(seurat_obj, main='hdWGCNA Dendrogram')
+
+seurat_obj <- ModuleEigengenes(seurat_obj, group.by.vars="MainGroups")
+
+# harmonized module eigengenes:
+hMEs <- GetMEs(seurat_obj)
+
+# module eigengenes:
+MEs <- GetMEs(seurat_obj, harmonized=FALSE)
+
+# compute eigengene-based connectivity (kME):
+seurat_obj <- ModuleConnectivity(seurat_obj, group.by = 'MainGroups')
+
+##############
+# Pseudotime #
+##############
+
+GSE255405_OL <- readRDS("")
+
+GSE255405_OL_SVZ <- subset(GSE255405_OL, subset = area == "SVZ")
+
+sce <- as.SingleCellExperiment(GSE255405_OL_SVZ)
+sce <- slingshot(sce, clusterLabels = 'MainGroups', reducedDim = 'PCA')
+sce <- tradeSeq::fitGAM(sce)
+ATres <- associationTest(sce)
+
+GSE255405_OL_SVZ$pseudotime <- sce$slingPseudotime_1
+
+lineages <- as.SlingshotDataSet(getLineages(
+  data           = GSE255405_OL_SVZ@reductions$umap@cell.embeddings,
+  clusterLabels  = GSE255405_OL_SVZ$MainGroups,
+  dist.method    = "mnn", # It can be: "simple", "scaled.full", "scaled.diag", "slingshot" or "mnn"
+  end.clus       = "MyOLs", # You can also define the ENDS!
+  start.clus     = "actOPCs"
+))
+
+curves <- as.SlingshotDataSet(getCurves(
+  data          = lineages,
+  thresh        = 1e-1,
+  stretch       = 1e-1,
+  allow.breaks  = F,
+  approx_points = 100
+))
+
+pseudotime <- slingPseudotime(curves, na = FALSE)
+cellWeights <- slingCurveWeights(curves)
+
+lineages@reducedDim <- GSE255405_OL_SVZ@reductions$umap@cell.embeddings
+
+plot(GSE255405_OL_SVZ@reductions$umap@cell.embeddings, col = pal[GSE255405_OL_SVZ$MainGroups], cex = .5, pch = 16)
+lines(lineages, lwd = 2, col = "black", cex = 2)
+
+```
