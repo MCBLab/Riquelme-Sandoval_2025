@@ -26,6 +26,7 @@ editor: visual
 library(Seurat)
 library(dplyr)
 library(ggplot2)
+library(DT)
 
 ```
 
@@ -158,20 +159,30 @@ saveRDS(GSE255405_OL, file = "GSE255405_OL.rds")
 #| eval: false
 #| warning: false
 
-GSE255405 <- readRDS("GSE255405.rds")
+GSE255405 <- readRDS("GSE255405_OL.rds")
+
+Idents(GSE255405) <- "MinorGroups"
 
 # Generate markers
-GSE255405.markers <- FindAllMarkers(GSE255405, only.pos = T)
-GSE255405.markers <- GSE255405.markers %>% filter(p_val_adj < 0.01)
 GSE255405.SVZ.markers <- subset(GSE255405, subset = area == "SVZ") %>% FindAllMarkers(., only.pos = T)
 GSE255405.SVZ.markers <- GSE255405.SVZ.markers %>% filter(p_val_adj < 0.01)
+GSE255405.SVZ.markers <- GSE255405.SVZ.markers %>%
+  mutate(area = "V/SVZ", age = "P7")
+
 GSE255405.ctx.markers <- subset(GSE255405, subset = area != "SVZ" & time == "P7") %>% FindAllMarkers(., only.pos = T)
 GSE255405.ctx.markers <- GSE255405.ctx.markers %>% filter(p_val_adj < 0.01)
+GSE255405.ctx.markers <- GSE255405.ctx.markers %>%
+  mutate(area = "Cortex", age = "P7")
+
+GSE255405.ctx.p2.markers <- subset(GSE255405, subset = area != "SVZ" & time == "P2") %>% FindAllMarkers(., only.pos = T)
+GSE255405.ctx.p2.markers <- GSE255405.ctx.p2.markers %>% filter(p_val_adj < 0.01)
+GSE255405.ctx.p2.markers <- GSE255405.ctx.p2.markers %>%
+  mutate(area = "Cortex", age = "P2")
 
 
-saveRDS(GSE255405.SVZ.markers, file = "GSE255405.SVZ.markers.rds")
-saveRDS(GSE255405.ctx.markers, file = "GSE255405.ctx.markers.rds")
-saveRDS(GSE255405.markers, file = "GSE255405.markers.rds")
+saveRDS(GSE255405.SVZ.markers, file = "GSE255405.vsvz.p7.markers.rds")
+saveRDS(GSE255405.ctx.markers, file = "GSE255405.ctx.p7.markers.rds")
+saveRDS(GSE255405.ctx.p2.markers, file = "GSE255405.ctx.p2.markers.rds")
 
 ```
 
@@ -183,7 +194,11 @@ GSE255405 <- readRDS("GSE255405.rds")
 
 GSE255405_OL <- readRDS("GSE255405_OL.rds")
 
-markers_OL <- readRDS("GSE255405_OL.markers.rds")
+markers_vsvz_p7 <- readRDS("GSE255405.vsvz.p7.markers.rds")
+markers_ctx_p2 <- readRDS("GSE255405.ctx.p2.markers.rds")
+markers_ctx_p7 <- readRDS("GSE255405.ctx.p7.markers.rds")
+
+markers <- rbind(markers_ctx_p2, markers_ctx_p7, markers_vsvz_p7)
 
 glu_genes <- c("Cnr1", "Cnr2", "Cspg4", "Nr3c1", "Nr3c2", "Ptges3", "Ncor1")
 
@@ -317,114 +332,26 @@ p1 | p2 | p3
 
 ```
 
-```{r deprecated}
+# Differential Gene Expression
+
+Table with all markers found within each Time + Area. So for example, it will find markers
+
+```{r tab1}
 #| echo: false
-#| eval: false
 #| warning: false
 
-GSE255405_OL <- readRDS("GSE255405_OL.rds")
-
-GSE255405_OL_SVZ <- subset(GSE255405_OL, subset = area == "SVZ")
-
-GSE255405_OL_SVZ <- SeuratObject::UpdateSeuratObject(GSE255405_OL_SVZ)
-
-seurat_obj <- SetupForWGCNA(
-  GSE255405_OL_SVZ,
-  gene_select = "fraction", # the gene selection approach
-  fraction = 0.05, # fraction of cells that a gene needs to be expressed in order to be included
-  wgcna_name = "OPCs/OLs" # the name of the hdWGCNA experiment
+# Create interactive table with download button
+markers %>% select(Gene = gene, Cluster = cluster,
+                   Area = area, Age = age, avg_log2FC, pct.1, pct.2, p_val_adj) %>%
+datatable(
+  markers,rownames = F,
+  extensions = 'Buttons',
+  options = list(
+    dom = 'Bfrtip',
+    buttons = c('copy', 'csv', 'excel')
+  ),
+  fillContainer = T
 )
 
-# construct metacells  in each group
-seurat_obj <- MetacellsByGroups(
-  seurat_obj = seurat_obj, min_cells = 50,
-  group.by = c("MainGroups"), # specify the columns in seurat_obj@meta.data to group by
-  reduction = 'pca', # select the dimensionality reduction to perform KNN on
-  k = 25, # nearest-neighbors parameter
-  max_shared = 10, # maximum number of shared cells between two metacells
-  ident.group = 'MainGroups' # set the Idents of the metacell seurat object
-)
-
-# normalize metacell expression matrix:
-seurat_obj <- NormalizeMetacells(seurat_obj)
-
-seurat_obj <- SetDatExpr(
-  seurat_obj,
-  group_name = "hOPCs",
-  group.by = "MainGroups",
-  assay = 'RNA', # using RNA assay
-  layer = 'data' # using normalized data
-)
-
-# Test different soft powers:
-seurat_obj <- TestSoftPowers(
-  seurat_obj,
-  networkType = 'signed' # you can also use "unsigned" or "signed hybrid"
-)
-
-# plot the results:
-plot_list <- PlotSoftPowers(seurat_obj)
-
-cowplot::plot_grid(plotlist = plot_list)
-
-power_table <- GetPowerTable(seurat_obj)
-
-saveRDS(seurat_obj, "GSE255405_OL_SVZ.rds")
-
-# seurat_obj <- readRDS("GSE255405_OL_SVZ.rds")
-
-seurat_obj <- ConstructNetwork(seurat_obj, tom_name = "hOPCs")
-
-PlotDendrogram(seurat_obj, main='hdWGCNA Dendrogram')
-
-seurat_obj <- ModuleEigengenes(seurat_obj, group.by.vars="MainGroups")
-
-# harmonized module eigengenes:
-hMEs <- GetMEs(seurat_obj)
-
-# module eigengenes:
-MEs <- GetMEs(seurat_obj, harmonized=FALSE)
-
-# compute eigengene-based connectivity (kME):
-seurat_obj <- ModuleConnectivity(seurat_obj, group.by = 'MainGroups')
-
-##############
-# Pseudotime #
-##############
-
-GSE255405_OL <- readRDS("")
-
-GSE255405_OL_SVZ <- subset(GSE255405_OL, subset = area == "SVZ")
-
-sce <- as.SingleCellExperiment(GSE255405_OL_SVZ)
-sce <- slingshot(sce, clusterLabels = 'MainGroups', reducedDim = 'PCA')
-sce <- tradeSeq::fitGAM(sce)
-ATres <- associationTest(sce)
-
-GSE255405_OL_SVZ$pseudotime <- sce$slingPseudotime_1
-
-lineages <- as.SlingshotDataSet(getLineages(
-  data           = GSE255405_OL_SVZ@reductions$umap@cell.embeddings,
-  clusterLabels  = GSE255405_OL_SVZ$MainGroups,
-  dist.method    = "mnn", # It can be: "simple", "scaled.full", "scaled.diag", "slingshot" or "mnn"
-  end.clus       = "MyOLs", # You can also define the ENDS!
-  start.clus     = "actOPCs"
-))
-
-curves <- as.SlingshotDataSet(getCurves(
-  data          = lineages,
-  thresh        = 1e-1,
-  stretch       = 1e-1,
-  allow.breaks  = F,
-  approx_points = 100
-))
-
-pseudotime <- slingPseudotime(curves, na = FALSE)
-cellWeights <- slingCurveWeights(curves)
-
-lineages@reducedDim <- GSE255405_OL_SVZ@reductions$umap@cell.embeddings
-
-plot(GSE255405_OL_SVZ@reductions$umap@cell.embeddings, col = pal[GSE255405_OL_SVZ$MainGroups], cex = .5, pch = 16)
-lines(lineages, lwd = 2, col = "black", cex = 2)
 
 ```
