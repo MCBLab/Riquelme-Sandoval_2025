@@ -256,6 +256,12 @@ p
 
 ```
 
+**Figure 1.**  
+UMAP visualization of single-cell RNA-seq data from the V/SVZ and cortex at postnatal days P2 and P7.  
+Each panel shows cell clustering colored by (A) major cell type groups, (B) developmental time point, (C) brain region (area), and (D) cell cycle phase.  
+This overview highlights the main neural and glial populations identified in the dataset.
+
+
 #### Markers used by author to classify cells
 
 ```{r fig2}
@@ -273,6 +279,12 @@ p + labs(title = "V/SVZ + Cortex (P2/P7) - Markers")
 
 
 ```
+
+**Figure 2.**  
+Dot plot showing expression of canonical marker genes across the main cell populations identified in the V/SVZ and cortex.
+Dot size represents the percentage of cells expressing the gene, while color intensity indicates average expression level. 
+Markers correspond to neuronal (e.g., *Tbr1*, *Syt4*), astrocytic (*Aldh1l1*, *Aqp4*), progenitor (*Ascl1*, *Sox2*), and oligodendrocyte (*Pdgfra*, *Mog*) lineages.
+
 
 ```{r fig3}
 #| echo: false
@@ -296,6 +308,12 @@ p1 | p2 | p3
 
 ```
 
+**Figure 3.**  
+Comparative dot plots illustrating the expression of glucocorticoid and cannabinoid signaling–related genes (*Cnr1*, *Cnr2*, *Nr3c1*, *Nr3c2*, *Ptges3*, *Ncor1*, *Cspg4*) in different brain regions and developmental stages.  
+Panels show gene expression in (A) cortex at P2, (B) V/SVZ at P7, and (C) cortex at P7.  
+These profiles reveal developmental and spatial differences in the regulatory networks influencing oligodendrocyte lineage cells.
+
+
 ### Does it have a specific OPCs / Oligodendrocytes groups expressing those markers?
 
 ```{r fig4}
@@ -309,6 +327,12 @@ p <- DimPlot(GSE255405_OL, group.by = "area", label = T, pt.size = 1) | DimPlot(
 p
 
 ```
+
+**Figure 4.**  
+UMAP visualization of oligodendrocyte lineage subpopulations (OPCs and OLs) extracted from the combined dataset.  
+Cells are colored by their subcluster identity, brain region, and developmental time point.  
+This representation highlights the transcriptional continuum from proliferative OPCs to mature myelinating OLs, and the influence of spatial and temporal factors on lineage progression.
+
 
 ```{r fig5}
 #| echo: false
@@ -332,26 +356,56 @@ p1 | p2 | p3
 
 ```
 
+**Figure 5.**  
+Dot plot of glucocorticoid and cannabinoid-related genes across oligodendrocytes and OPCs subpopulations.
+Dot size corresponds to the proportion of cells expressing each gene, and color intensity reflects average expression level.
+
 # Differential Gene Expression
 
-Table with all markers found within each Time + Area. So for example, it will find markers
+Table with all markers found within each Time + Area for subpopulations of OPCs + OLs.
+
+| **Column**     | **Description**                                                                                                                                                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Gene**       | The gene symbol or ID of the marker gene identified as differentially expressed. Each entry corresponds to one gene tested across clusters or groups.                                                                            |
+| **Cluster**    | The cell cluster (or subpopulation) in which the gene is more highly expressed compared to others. For example, a specific OPC or OL subtype.                                                                                    |
+| **Area**       | The **anatomical region** (e.g., cortex, corpus callosum, spinal cord) where this cluster’s cells were sampled. Helps distinguish spatial differences in gene expression.                                                        |
+| **Age**        | The **time point** or **developmental stage** (e.g., P7, Adult) at which cells were collected. Allows temporal comparisons of expression changes.                                                                                |
+| **avg_log2FC** | The **average log₂ fold-change** in expression between cells in the cluster of interest and all other cells. Positive values indicate upregulation in this cluster; negative values indicate downregulation.                     |
+| **pct.1**      | The **percentage of cells in the target cluster** where this gene is detected (nonzero expression). Higher values = more consistently expressed within the cluster.                                                              |
+| **pct.2**      | The **percentage of cells in all other clusters** (combined) expressing the same gene. Used to assess specificity of expression.                                                                                                 |
+| **p_val_adj**  | The **adjusted p-value** (after multiple testing correction, e.g., Bonferroni or FDR) indicating the statistical significance of the differential expression. Smaller values = stronger evidence that the gene is a true marker. |
+
 
 ```{r tab1}
 #| echo: false
 #| warning: false
 
 # Create interactive table with download button
-markers %>% select(Gene = gene, Cluster = cluster,
-                   Area = area, Age = age, avg_log2FC, pct.1, pct.2, p_val_adj) %>%
-datatable(
-  markers,rownames = F,
-  extensions = 'Buttons',
-  options = list(
-    dom = 'Bfrtip',
-    buttons = c('copy', 'csv', 'excel')
-  ),
-  fillContainer = T
-)
+markers %>%
+  select(
+    Gene = gene, Cluster = cluster, Area = area, Age = age,
+    avg_log2FC, pct.1, pct.2, p_val_adj) %>%
+  mutate(
+    avg_log2FC = round(avg_log2FC, 2),   # round to 2 decimals
+    p_val_adj = signif(p_val_adj, 3)     # use scientific rounding for p-values
+  ) %>%
+  datatable(
+    rownames = FALSE,
+    extensions = 'Buttons',
+    options = list(
+      dom = 'Bfrtip',
+      buttons = c('copy', 'csv', 'excel'),
+      scrollX = TRUE,
+      pageLength = 10
+    ),
+    fillContainer = TRUE
+  )
+
 
 
 ```
+
+**Table 1.**  
+List of marker genes identified for each OPC/OL subpopulation across different areas and developmental time points.  
+The table includes fold-change values, detection percentages, and adjusted p-values for statistical significance.
+
