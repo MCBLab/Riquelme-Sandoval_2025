@@ -64,12 +64,12 @@ GSM_p7_svz <- CreateSeuratObject(GSM_p7_svz, min.cells = 3, min.features = 2)
 GSM_p7_svz@meta.data$time <- "P7"
 GSM_p7_svz@meta.data$area <- "SVZ"
 
-# Joined version
-GSE255405@meta.data$time_area <- paste0(GSE255405@meta.data$time, "_", GSE255405@meta.data$area)
-
 # Joining layers
 GSE255405 <- merge(GSM_p2_cortex, list(GSM_p7_cortex, GSM_p7_svz), project = "GSE255405")
 GSE255405 <- JoinLayers(GSE255405)
+
+# Joined version
+GSE255405@meta.data$time_area <- paste0(GSE255405@meta.data$time, "_", GSE255405@meta.data$area)
 
 # Removing mitochondrial + low features
 GSE255405[["percent.mt"]] <- PercentageFeatureSet(GSE255405, pattern = "^mt-")
@@ -138,15 +138,10 @@ GSE255405_OL@meta.data$MinorGroups <- plyr::mapvalues(GSE255405_OL@meta.data$RNA
                                                   c("actOPCs", "actOPCs", "hOPCs", "IMyOLs", "hOPCs",
                                                     "ProlOPCs", "IMyOLs", "MyOLs", "ProlOPCs", "ProlOPCs"))
 
-# Readding OPCs / OLs to main GSE255405
-GSE255405@meta.data$MinorGroups <- GSE255405@meta.data$MainGroups
-GSE255405@meta.data <- GSE255405@meta.data %>% filter(MainGroups != "OPCs/OLs") %>% rbind(., GSE255405_OL@meta.data)
-GSE255405@meta.data <- GSE255405@meta.data[GSE255405@graphs$RNA_snn@Dimnames[[1]],]
-
 Idents(GSE255405_OL) <- "MainGroups"
 
-GSE255405_OL.markers.SVZ <- subset(GSE255405_OL, subset = area == "SVZ") %>% FindAllMarkers(., only.pos = T)
-GSE255405_OL.markers.cortex <- subset(GSE255405_OL, subset = area != "SVZ") %>% FindAllMarkers(., only.pos = T)
+GSE255405_OL.markers.SVZ <- subset(GSE255405_OL, subset = area == "SVZ" & time == "P7") %>% FindAllMarkers(., only.pos = T)
+GSE255405_OL.markers.cortex <- subset(GSE255405_OL, subset = area != "SVZ" & time == "P7") %>% FindAllMarkers(., only.pos = T)
 
 # Save objects
 saveRDS(GSE255405, file = "GSE255405.rds")
@@ -159,30 +154,103 @@ saveRDS(GSE255405_OL, file = "GSE255405_OL.rds")
 #| eval: false
 #| warning: false
 
-GSE255405 <- readRDS("GSE255405_OL.rds")
+GSE255405 <- readRDS("GSE255405.rds")
+GSE255405_OL <- readRDS("GSE255405_OL.rds")
 
 Idents(GSE255405) <- "MinorGroups"
 
+features <- c("Cnr1", "Cnr2", "Nr3c1", "Nr3c2")
+
 # Generate markers
-GSE255405.SVZ.markers <- subset(GSE255405, subset = area == "SVZ") %>% FindAllMarkers(., only.pos = T)
-GSE255405.SVZ.markers <- GSE255405.SVZ.markers %>% filter(p_val_adj < 0.01)
-GSE255405.SVZ.markers <- GSE255405.SVZ.markers %>%
-  mutate(area = "V/SVZ", age = "P7")
+GSE255405.SVZ.markers <- subset(GSE255405, subset = area == "SVZ"  & time == "P7") %>% FindAllMarkers(., test.use = "MAST", features = features)
+GSE255405.SVZ.markers <- GSE255405.SVZ.markers %>% filter(p_val_adj < 0.01, avg_log2FC > 0)
+GSE255405.SVZ.markers <- GSE255405.SVZ.markers %>% mutate(comparison = "All_V/SVZ")
 
-GSE255405.ctx.markers <- subset(GSE255405, subset = area != "SVZ" & time == "P7") %>% FindAllMarkers(., only.pos = T)
-GSE255405.ctx.markers <- GSE255405.ctx.markers %>% filter(p_val_adj < 0.01)
-GSE255405.ctx.markers <- GSE255405.ctx.markers %>%
-  mutate(area = "Cortex", age = "P7")
+GSE255405.ctx.markers <- subset(GSE255405, subset = area != "SVZ" & time == "P7") %>% FindAllMarkers(., test.use = "MAST", features = features)
+GSE255405.ctx.markers <- GSE255405.ctx.markers %>% filter(avg_log2FC > 0)
+GSE255405.ctx.markers <- GSE255405.ctx.markers %>% mutate(comparison = "All_Cortex")
 
-GSE255405.ctx.p2.markers <- subset(GSE255405, subset = area != "SVZ" & time == "P2") %>% FindAllMarkers(., only.pos = T)
-GSE255405.ctx.p2.markers <- GSE255405.ctx.p2.markers %>% filter(p_val_adj < 0.01)
-GSE255405.ctx.p2.markers <- GSE255405.ctx.p2.markers %>%
-  mutate(area = "Cortex", age = "P2")
+Idents(GSE255405_OL) <- "MainGroups"
+
+GSE255405_OL.SVZ.markers <- subset(GSE255405_OL, subset = area == "SVZ"  & time == "P7") %>% FindAllMarkers(., test.use = "MAST", features = features)
+GSE255405_OL.SVZ.markers <- GSE255405_OL.SVZ.markers %>% filter(avg_log2FC > 0)
+GSE255405_OL.SVZ.markers <- GSE255405_OL.SVZ.markers %>% mutate(comparison = "All_V/SVZ")
+
+GSE255405.SVZ.markers <- rbind(GSE255405.SVZ.markers, GSE255405_OL.SVZ.markers)
 
 
-saveRDS(GSE255405.SVZ.markers, file = "GSE255405.vsvz.p7.markers.rds")
-saveRDS(GSE255405.ctx.markers, file = "GSE255405.ctx.p7.markers.rds")
-saveRDS(GSE255405.ctx.p2.markers, file = "GSE255405.ctx.p2.markers.rds")
+# Does not work for Cortex P7
+# GSE255405_OL.ctx.markers <- subset(GSE255405_OL, subset = area != "SVZ" & time == "P7") %>% FindAllMarkers(., test.use = "MAST", features = features)
+# GSE255405_OL.ctx.markers <- GSE255405_OL.ctx.markers %>% filter(p_val_adj < 0.01, avg_log2FC > 0)
+# GSE255405_OL.ctx.markers <- GSE255405_OL.ctx.markers %>% mutate(comparison = "Cortex")
+
+# GSE255405.ctx.p2.markers <- subset(GSE255405, subset = area != "SVZ" & time == "P2") %>% FindAllMarkers(., only.pos = T)
+# GSE255405.ctx.p2.markers <- GSE255405.ctx.p2.markers %>% filter(p_val_adj < 0.01)
+# GSE255405.ctx.p2.markers <- GSE255405.ctx.p2.markers %>%
+#   mutate(area = "Cortex", age = "P2")
+
+# Per area
+
+celltypes <- GSE255405@meta.data$MainGroups %>% unique()
+
+features <- c("Cnr1", "Cnr2", "Nr3c1", "Nr3c2")
+
+markers_area <- lapply(celltypes, function(cell){
+  GSE <- subset(GSE255405, subset = time == "P7" & MainGroups == cell)
+  GSE
+  check <- GSE@meta.data %>% group_by(area) %>% tally() %>% select(n)
+  print(check)
+  if(nrow(check) == 1 | check[1,1] < 10 | check[2,1] < 10){
+    return(data.frame())
+  }
+  tab <- GSE %>%
+    FindMarkers(., ident.1 = "SVZ", ident.2 = "cortex", group.by = "area", test.use = "MAST", features = features)
+  tab$cluster = cell
+  tab$gene = rownames(tab)
+  return(tab)
+}) %>% Reduce(rbind, .)
+
+markers_area$comparison = "VSVZ_vs_Cortex"
+
+celltypes_OL <- GSE255405_OL@meta.data$MainGroups %>% unique()
+
+markers_area_OL <- lapply(celltypes_OL, function(cell){
+  GSE <- subset(GSE255405_OL, subset = time == "P7" & MainGroups == cell)
+  GSE
+  check <- GSE@meta.data %>% group_by(area) %>% tally() %>% select(n)
+  if(nrow(check) == 1 | check[1,1] < 10 | check[2,1] < 10){
+    return(data.frame())
+  }
+  tab <- GSE %>%
+    FindMarkers(., ident.1 = "SVZ", ident.2 = "cortex", test.use = "MAST", group.by = "area", features = features)
+  tab$cluster = cell
+  tab$gene = rownames(tab)
+  return(tab)
+}) %>% Reduce(rbind, .)
+
+markers_area_OL$comparison = "VSVZ_vs_Cortex"
+
+celltypes_OL_sub <- GSE255405_OL@meta.data$MinorGroups %>% unique()
+
+markers_area_OL_sub <- lapply(celltypes_OL_sub, function(cell){
+  GSE <- subset(GSE255405_OL, subset = time == "P7" & MinorGroups == cell)
+  GSE
+  check <- GSE@meta.data %>% group_by(area) %>% tally() %>% select(n)
+  if(nrow(check) == 1 | check[1,1] < 10 | check[2,1] < 10){
+    return(data.frame())
+  }
+  tab <- GSE %>%
+    FindMarkers(., ident.1 = "SVZ", ident.2 = "cortex", test.use = "MAST", group.by = "area", features = features)
+  tab$cluster = cell
+  tab$gene = rownames(tab)
+  return(tab)
+}) %>% Reduce(rbind, .)
+
+markers_area_OL_sub$comparison = "VSVZ_vs_Cortex"
+
+markers <- rbind(markers_ctx_p7, markers_vsvz_p7, markers_area, markers_area_OL, markers_area_OL_sub)
+
+saveRDS(markers, file = "All_comparisons.p7.markers.rds")
 
 ```
 
@@ -194,13 +262,9 @@ GSE255405 <- readRDS("GSE255405.rds")
 
 GSE255405_OL <- readRDS("GSE255405_OL.rds")
 
-markers_vsvz_p7 <- readRDS("GSE255405.vsvz.p7.markers.rds")
-markers_ctx_p2 <- readRDS("GSE255405.ctx.p2.markers.rds")
-markers_ctx_p7 <- readRDS("GSE255405.ctx.p7.markers.rds")
+markers <- readRDS("All_comparisons.p7.markers.rds")
 
-markers <- rbind(markers_ctx_p2, markers_ctx_p7, markers_vsvz_p7)
-
-glu_genes <- c("Cnr1", "Cnr2", "Cspg4", "Nr3c1", "Nr3c2", "Ptges3", "Ncor1")
+glu_genes <- c("Cnr1", "Cnr2", "Nr3c1", "Nr3c2")
 
 ```
 
@@ -228,10 +292,17 @@ Cell types were annotated following mostly protocol established by Dennis et al 
 #| fig-width: 16
 #| fig-height: 10
 
-p1 <- DimPlot(GSE255405, group.by = "MainGroups", pt.size = 1) + theme(axis.title = element_blank())
-p2 <- DimPlot(GSE255405, group.by = "time", pt.size = 1) + theme(axis.title = element_blank())
-p3 <- DimPlot(GSE255405, group.by = "area", pt.size = 1) + theme(axis.title = element_blank())
-p4 <- DimPlot(GSE255405, group.by = "Phase", pt.size = 1) + theme(axis.title = element_blank())
+
+
+p1 <- subset(GSE255405, subset = time == "P7") %>% 
+  DimPlot(., group.by = "MainGroups", pt.size = 1) + theme(axis.title = element_blank())
+p2 <- subset(GSE255405, subset = time == "P7") %>%
+  DimPlot(., group.by = "RNA_snn_res.0.1", pt.size = 1) + theme(axis.title = element_blank()) +
+  labs(title = "Cluster")
+p3 <- subset(GSE255405, subset = time == "P7") %>%
+  DimPlot(., group.by = "area", pt.size = 1) + theme(axis.title = element_blank())
+p4 <- subset(GSE255405, subset = time == "P7") %>%
+  DimPlot(., group.by = "Phase", pt.size = 1) + theme(axis.title = element_blank())
 
 p <- cowplot::plot_grid(plotlist = list(p1, p2, p3, p4))
 
@@ -256,11 +327,10 @@ p
 
 ```
 
-**Figure 1.**  
-UMAP visualization of single-cell RNA-seq data from the V/SVZ and cortex at postnatal days P2 and P7.  
-Each panel shows cell clustering colored by (A) major cell type groups, (B) developmental time point, (C) brain region (area), and (D) cell cycle phase.  
+**Figure 1.**\
+UMAP visualization of single-cell RNA-seq data from the V/SVZ and cortex at postnatal days P2 and P7.\
+Each panel shows cell clustering colored by (A) major cell type groups, (B) developmental time point, (C) brain region (area), and (D) cell cycle phase.\
 This overview highlights the main neural and glial populations identified in the dataset.
-
 
 #### Markers used by author to classify cells
 
@@ -280,11 +350,8 @@ p + labs(title = "V/SVZ + Cortex (P2/P7) - Markers")
 
 ```
 
-**Figure 2.**  
-Dot plot showing expression of canonical marker genes across the main cell populations identified in the V/SVZ and cortex.
-Dot size represents the percentage of cells expressing the gene, while color intensity indicates average expression level. 
-Markers correspond to neuronal (e.g., *Tbr1*, *Syt4*), astrocytic (*Aldh1l1*, *Aqp4*), progenitor (*Ascl1*, *Sox2*), and oligodendrocyte (*Pdgfra*, *Mog*) lineages.
-
+**Figure 2.**\
+Dot plot showing expression of canonical marker genes across the main cell populations identified in the V/SVZ and cortex. Dot size represents the percentage of cells expressing the gene, while color intensity indicates average expression level. Markers correspond to neuronal (e.g., *Tbr1*, *Syt4*), astrocytic (*Aldh1l1*, *Aqp4*), progenitor (*Ascl1*, *Sox2*), and oligodendrocyte (*Pdgfra*, *Mog*) lineages.
 
 ```{r fig3}
 #| echo: false
@@ -308,11 +375,10 @@ p1 | p2 | p3
 
 ```
 
-**Figure 3.**  
-Comparative dot plots illustrating the expression of glucocorticoid and cannabinoid signaling–related genes (*Cnr1*, *Cnr2*, *Nr3c1*, *Nr3c2*, *Ptges3*, *Ncor1*, *Cspg4*) in different brain regions and developmental stages.  
-Panels show gene expression in (A) cortex at P2, (B) V/SVZ at P7, and (C) cortex at P7.  
+**Figure 3.**\
+Comparative dot plots illustrating the expression of glucocorticoid and cannabinoid signaling–related genes (*Cnr1*, *Cnr2*, *Nr3c1*, *Nr3c2*, *Ptges3*, *Ncor1*, *Cspg4*) in different brain regions and developmental stages.\
+Panels show gene expression in (A) cortex at P2, (B) V/SVZ at P7, and (C) cortex at P7.\
 These profiles reveal developmental and spatial differences in the regulatory networks influencing oligodendrocyte lineage cells.
-
 
 ### Does it have a specific OPCs / Oligodendrocytes groups expressing those markers?
 
@@ -328,11 +394,10 @@ p
 
 ```
 
-**Figure 4.**  
-UMAP visualization of oligodendrocyte lineage subpopulations (OPCs and OLs) extracted from the combined dataset.  
-Cells are colored by their subcluster identity, brain region, and developmental time point.  
+**Figure 4.**\
+UMAP visualization of oligodendrocyte lineage subpopulations (OPCs and OLs) extracted from the combined dataset.\
+Cells are colored by their subcluster identity, brain region, and developmental time point.\
 This representation highlights the transcriptional continuum from proliferative OPCs to mature myelinating OLs, and the influence of spatial and temporal factors on lineage progression.
-
 
 ```{r fig5}
 #| echo: false
@@ -356,25 +421,22 @@ p1 | p2 | p3
 
 ```
 
-**Figure 5.**  
-Dot plot of glucocorticoid and cannabinoid-related genes across oligodendrocytes and OPCs subpopulations.
-Dot size corresponds to the proportion of cells expressing each gene, and color intensity reflects average expression level.
+**Figure 5.**\
+Dot plot of glucocorticoid and cannabinoid-related genes across oligodendrocytes and OPCs subpopulations. Dot size corresponds to the proportion of cells expressing each gene, and color intensity reflects average expression level.
 
 # Differential Gene Expression
 
 Table with all markers found within each Time + Area for subpopulations of OPCs + OLs.
 
-| **Column**     | **Description**                                                                                                                                                                                                                  |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Gene**       | The gene symbol or ID of the marker gene identified as differentially expressed. Each entry corresponds to one gene tested across clusters or groups.                                                                            |
-| **Cluster**    | The cell cluster (or subpopulation) in which the gene is more highly expressed compared to others. For example, a specific OPC or OL subtype.                                                                                    |
-| **Area**       | The **anatomical region** (e.g., cortex, corpus callosum, spinal cord) where this cluster’s cells were sampled. Helps distinguish spatial differences in gene expression.                                                        |
-| **Age**        | The **time point** or **developmental stage** (e.g., P7, Adult) at which cells were collected. Allows temporal comparisons of expression changes.                                                                                |
-| **avg_log2FC** | The **average log₂ fold-change** in expression between cells in the cluster of interest and all other cells. Positive values indicate upregulation in this cluster; negative values indicate downregulation.                     |
-| **pct.1**      | The **percentage of cells in the target cluster** where this gene is detected (nonzero expression). Higher values = more consistently expressed within the cluster.                                                              |
-| **pct.2**      | The **percentage of cells in all other clusters** (combined) expressing the same gene. Used to assess specificity of expression.                                                                                                 |
-| **p_val_adj**  | The **adjusted p-value** (after multiple testing correction, e.g., Bonferroni or FDR) indicating the statistical significance of the differential expression. Smaller values = stronger evidence that the gene is a true marker. |
-
+| **Column** | **Description** |
+|------------|------------------------------------------------------------|
+| **Gene** | The gene symbol or ID of the marker gene identified as differentially expressed. Each entry corresponds to one gene tested across clusters or groups. |
+| **Cluster** | The cell cluster (or subpopulation) in which the gene is more highly expressed compared to others. For example, a specific OPC or OL subtype. |
+| **Comparison** | The **comparison** where this cluster’s cells were sampled. |
+| **avg_log2FC** | The **average log₂ fold-change** in expression between cells in the cluster of interest and all other cells. Positive values indicate upregulation in this cluster; negative values indicate downregulation. |
+| **pct.1** | The **percentage of cells in the target cluster** where this gene is detected (nonzero expression). Higher values = more consistently expressed within the cluster. |
+| **pct.2** | The **percentage of cells in all other clusters** (combined) expressing the same gene. Used to assess specificity of expression. |
+| **p_val_adj** | The **adjusted p-value** (after multiple testing correction, e.g., Bonferroni or FDR) indicating the statistical significance of the differential expression. Smaller values = stronger evidence that the gene is a true marker. |
 
 ```{r tab1}
 #| echo: false
@@ -383,7 +445,7 @@ Table with all markers found within each Time + Area for subpopulations of OPCs 
 # Create interactive table with download button
 markers %>%
   select(
-    Gene = gene, Cluster = cluster, Area = area, Age = age,
+    Gene = gene, Cluster = cluster, Comparison = comparison,
     avg_log2FC, pct.1, pct.2, p_val_adj) %>%
   mutate(
     avg_log2FC = round(avg_log2FC, 2),   # round to 2 decimals
@@ -405,7 +467,6 @@ markers %>%
 
 ```
 
-**Table 1.**  
-List of marker genes identified for each OPC/OL subpopulation across different areas and developmental time points.  
+**Table 1.**\
+List of marker genes identified for each OPC/OL subpopulation across different areas and developmental time points.\
 The table includes fold-change values, detection percentages, and adjusted p-values for statistical significance.
-
