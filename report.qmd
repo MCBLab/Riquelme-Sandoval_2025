@@ -328,7 +328,7 @@ p
 ```
 
 **Figure 1.**\
-UMAP visualization of single-cell RNA-seq data from the V/SVZ and cortex at postnatal days P2 and P7.\
+UMAP visualization of single-cell RNA-seq data from the V/SVZ and cortex at postnatal days P7.\
 Each panel shows cell clustering colored by (A) major cell type groups, (B) developmental time point, (C) brain region (area), and (D) cell cycle phase.\
 This overview highlights the main neural and glial populations identified in the dataset.
 
@@ -340,11 +340,12 @@ This overview highlights the main neural and glial populations identified in the
 #| fig-width: 8
 #| fig-height: 5
 
-p <- DotPlot(GSE255405, group.by = "MainGroups", features = c("Syt4", "Tbr1", "Aldh1l1", "Aqp4", "Ascl1", "Sp8", "Gad1", "Gad2", "Vnn1", "Sox2", "Vim", "Aif1", "Pecam1", "Vtn", "Foxj1", "Pdgfra", "Enpp6", "Mog")) +
+p <- subset(GSE255405, subset = time == "P7") %>%
+  DotPlot(., group.by = "MainGroups", features = c("Syt4", "Tbr1", "Aldh1l1", "Aqp4", "Ascl1", "Sp8", "Gad1", "Gad2", "Vnn1", "Sox2", "Vim", "Aif1", "Pecam1", "Vtn", "Foxj1", "Pdgfra", "Enpp6", "Mog")) +
   theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
 
 # pdf("figures/markers.dotplot.ctx_vsvz.pdf", width = 8, height = 3.5)
-p + labs(title = "V/SVZ + Cortex (P2/P7) - Markers")
+p + labs(title = "V/SVZ + Cortex (P7) - Markers")
 # dev.off()
 
 
@@ -356,7 +357,7 @@ Dot plot showing expression of canonical marker genes across the main cell popul
 ```{r fig3}
 #| echo: false
 #| warning: false
-#| fig-width: 15
+#| fig-width: 10
 #| fig-height: 5
 
 # pdf("figures/nr3c1_cnrs.dotplot.ctx_vsvz.pdf", width = 8.5, height = 3.5)
@@ -371,13 +372,13 @@ DotPlot(features = glu_genes, group.by = "MainGroups") + labs(title = "Cortex (P
   theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
 # dev.off()
 
-p1 | p2 | p3
+p2 | p3
 
 ```
 
 **Figure 3.**\
 Comparative dot plots illustrating the expression of glucocorticoid and cannabinoid signaling–related genes (*Cnr1*, *Cnr2*, *Nr3c1*, *Nr3c2*, *Ptges3*, *Ncor1*, *Cspg4*) in different brain regions and developmental stages.\
-Panels show gene expression in (A) cortex at P2, (B) V/SVZ at P7, and (C) cortex at P7.\
+Panels show gene expression in (A) V/SVZ at P7, and (B) cortex at P7.\
 These profiles reveal developmental and spatial differences in the regulatory networks influencing oligodendrocyte lineage cells.
 
 ### Does it have a specific OPCs / Oligodendrocytes groups expressing those markers?
@@ -388,7 +389,8 @@ These profiles reveal developmental and spatial differences in the regulatory ne
 #| fig-width: 12
 #| fig-height: 5
 
-p <- DimPlot(GSE255405_OL, group.by = "area", label = T, pt.size = 1) | DimPlot(GSE255405_OL, group.by = "MainGroups", pt.size = 1) | DimPlot(GSE255405_OL, group.by = "MinorGroups", pt.size = 1)
+p <- subset(GSE255405_OL, time == "P7") %>%
+  DimPlot(., group.by = "area", label = T, pt.size = 1) | DimPlot(GSE255405_OL, group.by = "MainGroups", pt.size = 1) | DimPlot(GSE255405_OL, group.by = "MinorGroups", pt.size = 1)
 
 p
 
@@ -402,7 +404,7 @@ This representation highlights the transcriptional continuum from proliferative 
 ```{r fig5}
 #| echo: false
 #| warning: false
-#| fig-width: 15
+#| fig-width: 10
 #| fig-height: 5
 
 # pdf("figures/nr3c1_cnrs.dotplot.ctx_vsvz.pdf", width = 8.5, height = 3.5)
@@ -417,7 +419,7 @@ DotPlot(features = glu_genes, group.by = "MinorGroups") + labs(title = "Cortex (
   theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
 # dev.off()
 
-p1 | p2 | p3
+p2 | p3
 
 ```
 
@@ -429,7 +431,7 @@ Dot plot of glucocorticoid and cannabinoid-related genes across oligodendrocytes
 Table with all markers found within each Time + Area for subpopulations of OPCs + OLs.
 
 | **Column** | **Description** |
-|------------|------------------------------------------------------------|
+|----------------|--------------------------------------------------------|
 | **Gene** | The gene symbol or ID of the marker gene identified as differentially expressed. Each entry corresponds to one gene tested across clusters or groups. |
 | **Cluster** | The cell cluster (or subpopulation) in which the gene is more highly expressed compared to others. For example, a specific OPC or OL subtype. |
 | **Comparison** | The **comparison** where this cluster’s cells were sampled. |
