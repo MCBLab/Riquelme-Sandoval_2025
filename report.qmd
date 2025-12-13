@@ -143,6 +143,21 @@ Idents(GSE255405_OL) <- "MainGroups"
 GSE255405_OL.markers.SVZ <- subset(GSE255405_OL, subset = area == "SVZ" & time == "P7") %>% FindAllMarkers(., only.pos = T)
 GSE255405_OL.markers.cortex <- subset(GSE255405_OL, subset = area != "SVZ" & time == "P7") %>% FindAllMarkers(., only.pos = T)
 
+# Reintegrate sublabels into MainGroup
+meta_GSE <- GSE255405@meta.data %>% tibble::rownames_to_column("id")
+meta_GSE_OL <- GSE255405_OL@meta.data %>% tibble::rownames_to_column("id") %>%
+  select(id, xMainGroups = MainGroups, xMinorGroups = MinorGroups)
+
+meta <- merge(meta_GSE, meta_GSE_OL, by = "id", all = T)
+meta <- meta %>%
+  mutate(MainGroups = ifelse(is.na(xMainGroups), as.character(MainGroups), as.character(xMainGroups))) %>%
+  mutate(MinorGroups = ifelse(is.na(xMinorGroups), as.character(MainGroups), as.character(xMinorGroups))) %>%
+  mutate(MinorGroups = factor(MinorGroups), MainGroups = factor(MainGroups)) %>%
+  select(-xMainGroups, -xMinorGroups) %>%
+  tibble::column_to_rownames("id")
+
+GSE255405@meta.data <- meta[colnames(GSE255405),]
+
 # Save objects
 saveRDS(GSE255405, file = "GSE255405.rds")
 saveRDS(GSE255405_OL, file = "GSE255405_OL.rds")
@@ -341,7 +356,7 @@ This overview highlights the main neural and glial populations identified in the
 #| fig-height: 5
 
 p <- subset(GSE255405, subset = time == "P7") %>%
-  DotPlot(., group.by = "MainGroups", features = c("Syt4", "Tbr1", "Aldh1l1", "Aqp4", "Ascl1", "Sp8", "Gad1", "Gad2", "Vnn1", "Sox2", "Vim", "Aif1", "Pecam1", "Vtn", "Foxj1", "Pdgfra", "Enpp6", "Mog")) +
+  DotPlot(., group.by = "MainGroups", features = c("Aldh1l1", "Aqp4", "Foxj1", "Pecam1", "Syt4", "Tbr1",  "Sp8", "Gad1", "Gad2", "Aif1",  "Vnn1", "Sox2", "Vim", "Enpp6", "Mog",  "Pdgfra", "Vtn", "Ascl1")) +
   theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
 
 # pdf("figures/markers.dotplot.ctx_vsvz.pdf", width = 8, height = 3.5)
@@ -431,7 +446,7 @@ Dot plot of glucocorticoid and cannabinoid-related genes across oligodendrocytes
 Table with all markers found within each Time + Area for subpopulations of OPCs + OLs.
 
 | **Column** | **Description** |
-|----------------|--------------------------------------------------------|
+|------------------|------------------------------------------------------|
 | **Gene** | The gene symbol or ID of the marker gene identified as differentially expressed. Each entry corresponds to one gene tested across clusters or groups. |
 | **Cluster** | The cell cluster (or subpopulation) in which the gene is more highly expressed compared to others. For example, a specific OPC or OL subtype. |
 | **Comparison** | The **comparison** where this cluster’s cells were sampled. |
