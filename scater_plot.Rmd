@@ -9,18 +9,36 @@ library(ggplot2)
 library(tidyverse)
 library(vegan)
 library(readxl)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```
 
-## Data Import and Transformation
+## Methodology
 
-```{r data-import}
+This analysis examines the relationship between Process Index (normalized prolongamento) and Complexity Index (normalized Index_complex) across different experimental conditions. Data normalization was performed by scaling values relative to the control group mean, setting the control baseline to 50. 
+
+Statistical analyses include:
+
+- **PERMANOVA** (Permutational Multivariate Analysis of Variance): Tests for significant differences in multivariate dispersion between groups using Euclidean distances with 1,000 permutations
+- **PERMDISP** (Permutational Analysis of Multivariate Dispersions): Assesses homogeneity of multivariate dispersions across groups using pairwise permutation tests with 1,000 permutations
+
+Visualizations display 2D density contours overlaid on scatter plots, with reference lines at the control mean (50, 50) shown as red dashed lines. All plots use log-scale for the y-axis to better visualize the data distribution.
+
+```{r data-import, echo=FALSE}
 data <- read.csv("data/scatter_plot.csv")
 
 data <- data %>%
-  mutate(tipo = ifelse(tipo == "CB1_POS", "(+)WIN",tipo)) %>%
-  mutate(tipo = ifelse(tipo == "CB1_NEG", "(-)Rimonabant",tipo))
+  mutate(tipo = ifelse(tipo == "CB1_POS", "(+)Win",tipo)) %>%
+  mutate(tipo = ifelse(tipo == "CB1_NEG", "(-)Rimonabant",tipo)) %>%
+  mutate(tipo = ifelse(tipo == "control", "Control",tipo)) %>%
+  mutate(tipo = ifelse(tipo == "cortico", "Cort",tipo)) %>%
+  mutate(tipo = ifelse(tipo == "cortico_CB1_NEG", "Cort(-)Rimonabant",tipo)) %>%
+  mutate(tipo = ifelse(tipo == "cortico_CB1_POS", "Cort(+)Win",tipo)) %>%
+  mutate(tipo = ifelse(tipo == "cortico_DAG", "Cort(i)DAG",tipo)) %>%
+  mutate(tipo = ifelse(tipo == "cortico_MAG", "Cort(i)MAG",tipo)) %>%
+  mutate(tipo = ifelse(tipo == "cortico_FAAH", "Cort(i)FAAH",tipo)) %>%
+  mutate(tipo = factor(tipo, levels = c("Control", "(-)Rimonabant", "(+)Win", "FAAH", "MAG", "DAG","Cort", "Cort(-)Rimonabant", "Cort(+)Win", "Cort(i)FAAH", "Cort(i)MAG", "Cort(i)DAG")))
 
-control_means <- data %>% filter(tipo == "control") %>% summarise(
+control_means <- data %>% filter(tipo == "Control") %>% summarise(
   mean_prolongamento = mean(prolongamento, na.rm = TRUE),
   mean_index = mean(Index_complex, na.rm = TRUE)
 )
@@ -30,10 +48,12 @@ data <- data %>% mutate(
 )
 ```
 
-## PERMANOVA and Dispersion Analysis
+# PERMANOVA and Dispersion Analysis
 
-```{r permanova-dispersion}
-groups <- c("control", "(-)Rimonabant", "(+)WIN", "FAAH", "MAG", "DAG")
+## Control-only
+
+```{r permanova-dispersion, echo=FALSE}
+groups <- c("Control", "(-)Rimonabant", "(+)Win", "FAAH", "MAG", "DAG")
 
 data_filt <- data %>% filter(tipo %in% groups) %>%
   mutate(tipo = factor(tipo, levels = groups))
@@ -47,23 +67,19 @@ pt <- permutest(bd, pairwise = TRUE, permutations = 1000)
 
 ```
 
-## Pairwise PERMDISP Heatmap
-
-```{r heatmap, fig.width=9, fig.height=3.5}
+```{r heatmap, echo=FALSE}
 pvals <- as.data.frame(pt$pairwise$permuted)
 pvals$Group1 <- rownames(pvals)
 pvals_long <- pvals %>%
   pivot_longer(-Group1, names_to = "Group2", values_to = "p") %>%
-  filter(!is.na(p)) %>% filter(grepl("control", Group1)) %>%
+  filter(!is.na(p)) %>% filter(grepl("Control", Group1)) %>%
   rename(tipo = Group1)
 
-pvals_long$tipo <- gsub("control-", "", pvals_long$tipo)
+pvals_long$tipo <- gsub("Control-", "", pvals_long$tipo)
 
 ```
 
-## Cluster Plots
-
-```{r cluster-plot-density2d, fig.width=8, fig.height=6}
+```{r cluster-plot-density2d, fig.width=8, fig.height=6, fig.dpi=300, echo=FALSE}
 p1 <- data %>% merge(., pvals_long, all = T) %>% filter(tipo %in% groups) %>%
   mutate(tipo = factor(tipo, levels = groups)) %>%
   ggplot(aes(x = Prolongamento_norm, y = Index_complex_norm)) +
@@ -90,23 +106,86 @@ p1 <- data %>% merge(., pvals_long, all = T) %>% filter(tipo %in% groups) %>%
 print(p1)
 ```
 
-```{r cluster-plot-density, fig.width=8, fig.height=6}
-p2 <- data %>% mutate()
+**Figure 1:** Density distribution of Process Index vs. Complexity Index for control-based conditions. Each panel represents a different treatment group (Control, Rimonabant antagonist, WIN agonist, and endocannabinoid enzyme inhibitors: FAAH, MAG, DAG). Grey density contours indicate data concentration areas. Red dashed lines mark the control baseline (50, 50). P-values from pairwise PERMDISP tests compare each treatment to control, indicating differences in multivariate dispersion. Y-axis is displayed in log-scale.
+
+## Cortico-only
+
+```{r permanova-dispersion2, echo=FALSE}
+groups <- c("Cort", "Cort(-)Rimonabant", "Cort(+)Win", "Cort(i)FAAH", "Cort(i)MAG", "Cort(i)DAG")
+
+data_filt <- data %>% filter(tipo %in% groups) %>%
+  mutate(tipo = factor(tipo, levels = groups))
+
+X <- data_filt %>% select(Prolongamento_norm, Index_complex_norm) %>% scale()
+dist_mat <- vegdist(X,  method = "euclidean")
+bd <- betadisper(dist_mat, data_filt$tipo,  type = "centroid")
+dispersion <- anova(bd)
+result <- adonis2(dist_mat ~ tipo, data = data_filt, permutations = 1000)
+pt <- permutest(bd, pairwise = TRUE, permutations = 1000)
+
+```
+
+```{r heatmap2, echo=FALSE}
+pvals <- as.data.frame(pt$pairwise$permuted)
+pvals$Group1 <- rownames(pvals)
+pvals_long <- pvals %>%
+  pivot_longer(-Group1, names_to = "Group2", values_to = "p") %>%
+  filter(!is.na(p)) %>% filter(grepl("Cort", Group1)) %>%
+  rename(tipo = Group1)
+
+pvals_long$tipo <- gsub("Cort-", "", pvals_long$tipo)
+
+```
+
+```{r cluster-plot-density2d2, fig.width=8, fig.height=6, fig.dpi=300, echo=FALSE}
+p2 <- data %>% merge(., pvals_long, all = T) %>% filter(tipo %in% groups) %>%
+  mutate(tipo = factor(tipo, levels = groups)) %>%
   ggplot(aes(x = Prolongamento_norm, y = Index_complex_norm)) +
   geom_point(size = 1) +
   stat_density_2d(
-    aes(fill = tipo, alpha = after_stat(level)), 
+    aes(alpha = after_stat(level)), 
     geom = "polygon", show.legend = F,
-    color = NA
+    color = NA, fill = "#4d4d4d"
   ) +
   theme_classic() +
   labs(y = "Complexity Index", x = "Process Index") +
   facet_wrap(.~ tipo) +
-  labs(title = "Clusters by tipo (log y)", x = "Prolongamento", y = "Index_complex (log scale)") +
+  labs(x = "Process index", y = "Complexity index") +
+  scale_y_log10(limits = c(1,1000)) +
+  scale_x_continuous(limits = c(0,150)) +
+  geom_hline(yintercept = 50, linetype = "dashed", color = "red") +
+  geom_vline(xintercept = 50, linetype = "dashed", color = "red") +
+  geom_text(
+    data = . %>% group_by(tipo) %>% slice(1),
+    aes(label = paste0("p = ", round(p, 3))),
+    x = Inf, y = 0.5, hjust = 1.1, vjust = 1.5, size = 5
+  )
+
+print(p2)
+```
+
+**Figure 2:** Density distribution of Process Index vs. Complexity Index for corticosterone-treated conditions. Each panel shows the combined effect of corticosterone (Cort) with different cannabinoid modulations: control corticosterone, Rimonabant antagonist, WIN agonist, and endocannabinoid enzyme inhibitors (FAAH, MAG, DAG). Grey density contours show data concentration patterns. Red dashed lines indicate the control baseline. P-values from pairwise PERMDISP tests compare each corticosterone+treatment combination to corticosterone alone. Y-axis is displayed in log-scale.
+
+## Overall
+
+```{r all-cluster-plot-density, fig.width=14, fig.height=6, fig.dpi=300, echo=FALSE}
+p3 <- data %>%
+  ggplot(aes(x = Prolongamento_norm, y = Index_complex_norm)) +
+  geom_point(size = 1) +
+  stat_density_2d(
+    aes(alpha = after_stat(level)), 
+    geom = "polygon", show.legend = F,
+    color = NA, fill = "#4d4d4d"
+  ) +
+  theme_classic() +
+  facet_wrap(.~ tipo, nrow = 2) +
+  labs(title = "Distribution for all conditions", x = "Process index", y = "Complexity index") +
   scale_y_log10(limits = c(1,1000)) +
   scale_x_continuous(limits = c(0,150)) +
   geom_hline(yintercept = 50, linetype = "dashed", color = "red") +
   geom_vline(xintercept = 50, linetype = "dashed", color = "red")
 
-print(p2)
+print(p3)
 ```
+
+**Figure 3:** Comprehensive comparison of all experimental conditions showing the density distribution of Process Index vs. Complexity Index. This overview displays both control-based conditions (top row) and corticosterone-treated conditions (bottom row) in a single visualization. Grey density contours illustrate the concentration of data points for each condition. Red dashed lines mark the control reference baseline at (50, 50). This figure allows for direct visual comparison of how different cannabinoid system modulations affect microglial morphology parameters, both in basal conditions and under corticosterone-induced stress. Y-axis is displayed in log-scale.
