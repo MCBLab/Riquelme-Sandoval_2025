@@ -1,0 +1,112 @@
+---
+title: "Scater Plot Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(vegan)
+library(readxl)
+```
+
+## Data Import and Transformation
+
+```{r data-import}
+data <- read.csv("data/scatter_plot.csv")
+
+data <- data %>%
+  mutate(tipo = ifelse(tipo == "CB1_POS", "(+)WIN",tipo)) %>%
+  mutate(tipo = ifelse(tipo == "CB1_NEG", "(-)Rimonabant",tipo))
+
+control_means <- data %>% filter(tipo == "control") %>% summarise(
+  mean_prolongamento = mean(prolongamento, na.rm = TRUE),
+  mean_index = mean(Index_complex, na.rm = TRUE)
+)
+data <- data %>% mutate(
+  Prolongamento_norm = 50 * prolongamento / control_means$mean_prolongamento,
+  Index_complex_norm = 50 * Index_complex / control_means$mean_index
+)
+```
+
+## PERMANOVA and Dispersion Analysis
+
+```{r permanova-dispersion}
+groups <- c("control", "(-)Rimonabant", "(+)WIN", "FAAH", "MAG", "DAG")
+
+data_filt <- data %>% filter(tipo %in% groups) %>%
+  mutate(tipo = factor(tipo, levels = groups))
+
+X <- data_filt %>% select(Prolongamento_norm, Index_complex_norm) %>% scale()
+dist_mat <- vegdist(X,  method = "euclidean")
+bd <- betadisper(dist_mat, data_filt$tipo,  type = "centroid")
+dispersion <- anova(bd)
+result <- adonis2(dist_mat ~ tipo, data = data_filt, permutations = 1000)
+pt <- permutest(bd, pairwise = TRUE, permutations = 1000)
+
+```
+
+## Pairwise PERMDISP Heatmap
+
+```{r heatmap, fig.width=9, fig.height=3.5}
+pvals <- as.data.frame(pt$pairwise$permuted)
+pvals$Group1 <- rownames(pvals)
+pvals_long <- pvals %>%
+  pivot_longer(-Group1, names_to = "Group2", values_to = "p") %>%
+  filter(!is.na(p)) %>% filter(grepl("control", Group1)) %>%
+  rename(tipo = Group1)
+
+pvals_long$tipo <- gsub("control-", "", pvals_long$tipo)
+
+```
+
+## Cluster Plots
+
+```{r cluster-plot-density2d, fig.width=8, fig.height=6}
+p1 <- data %>% merge(., pvals_long, all = T) %>% filter(tipo %in% groups) %>%
+  mutate(tipo = factor(tipo, levels = groups)) %>%
+  ggplot(aes(x = Prolongamento_norm, y = Index_complex_norm)) +
+  geom_point(size = 1) +
+  stat_density_2d(
+    aes(alpha = after_stat(level)), 
+    geom = "polygon", show.legend = F,
+    color = NA, fill = "#4d4d4d"
+  ) +
+  theme_classic() +
+  labs(y = "Complexity Index", x = "Process Index") +
+  facet_wrap(.~ tipo) +
+  labs(x = "Process index", y = "Complexity index") +
+  scale_y_log10(limits = c(1,1000)) +
+  scale_x_continuous(limits = c(0,150)) +
+  geom_hline(yintercept = 50, linetype = "dashed", color = "red") +
+  geom_vline(xintercept = 50, linetype = "dashed", color = "red") +
+  geom_text(
+    data = . %>% group_by(tipo) %>% slice(1),
+    aes(label = paste0("p = ", round(p, 3))),
+    x = Inf, y = 0.5, hjust = 1.1, vjust = 1.5, size = 5
+  )
+
+print(p1)
+```
+
+```{r cluster-plot-density, fig.width=8, fig.height=6}
+p2 <- data %>% mutate()
+  ggplot(aes(x = Prolongamento_norm, y = Index_complex_norm)) +
+  geom_point(size = 1) +
+  stat_density_2d(
+    aes(fill = tipo, alpha = after_stat(level)), 
+    geom = "polygon", show.legend = F,
+    color = NA
+  ) +
+  theme_classic() +
+  labs(y = "Complexity Index", x = "Process Index") +
+  facet_wrap(.~ tipo) +
+  labs(title = "Clusters by tipo (log y)", x = "Prolongamento", y = "Index_complex (log scale)") +
+  scale_y_log10(limits = c(1,1000)) +
+  scale_x_continuous(limits = c(0,150)) +
+  geom_hline(yintercept = 50, linetype = "dashed", color = "red") +
+  geom_vline(xintercept = 50, linetype = "dashed", color = "red")
+
+print(p2)
+```
