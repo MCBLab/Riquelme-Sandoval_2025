@@ -172,26 +172,35 @@ saveRDS(GSE255405_OL, file = "GSE255405_OL.rds")
 GSE255405 <- readRDS("GSE255405.rds")
 GSE255405_OL <- readRDS("GSE255405_OL.rds")
 
-Idents(GSE255405) <- "MinorGroups"
+Idents(GSE255405) <- "MainGroups"
 
-features <- c("Cnr1", "Cnr2", "Nr3c1", "Nr3c2")
+features <-  c("Cnr1", "Cnr2", "Nr3c1", "Nr3c2", "Dagla", "Daglb", "Mgll", "Faah", "Napepld")
 
 # Generate markers
 GSE255405.SVZ.markers <- subset(GSE255405, subset = area == "SVZ"  & time == "P7") %>% FindAllMarkers(., test.use = "MAST", features = features)
-GSE255405.SVZ.markers <- GSE255405.SVZ.markers %>% filter(p_val_adj < 0.01, avg_log2FC > 0)
-GSE255405.SVZ.markers <- GSE255405.SVZ.markers %>% mutate(comparison = "All_V/SVZ")
+GSE255405.SVZ.markers <- GSE255405.SVZ.markers %>% filter(avg_log2FC > 0)
+GSE255405.SVZ.markers <- GSE255405.SVZ.markers %>%
+  mutate(comparison = "All_V/SVZ", group = "MainGroups")
 
-GSE255405.ctx.markers <- subset(GSE255405, subset = area != "SVZ" & time == "P7") %>% FindAllMarkers(., test.use = "MAST", features = features)
+GSE255405.ctx.markers <- subset(GSE255405, subset = area == "cortex" & time == "P7") %>% FindAllMarkers(., test.use = "MAST", features = features)
 GSE255405.ctx.markers <- GSE255405.ctx.markers %>% filter(avg_log2FC > 0)
-GSE255405.ctx.markers <- GSE255405.ctx.markers %>% mutate(comparison = "All_Cortex")
+GSE255405.ctx.markers <- GSE255405.ctx.markers %>%
+  mutate(comparison = "All_Cortex", group = "MainGroups")
 
-Idents(GSE255405_OL) <- "MainGroups"
+Idents(GSE255405_OL) <- "MinorGroups"
 
 GSE255405_OL.SVZ.markers <- subset(GSE255405_OL, subset = area == "SVZ"  & time == "P7") %>% FindAllMarkers(., test.use = "MAST", features = features)
 GSE255405_OL.SVZ.markers <- GSE255405_OL.SVZ.markers %>% filter(avg_log2FC > 0)
-GSE255405_OL.SVZ.markers <- GSE255405_OL.SVZ.markers %>% mutate(comparison = "All_V/SVZ")
+GSE255405_OL.SVZ.markers <- GSE255405_OL.SVZ.markers %>%
+  mutate(comparison = "All_V/SVZ", group = "MinorGroups")
 
-GSE255405.SVZ.markers <- rbind(GSE255405.SVZ.markers, GSE255405_OL.SVZ.markers)
+GSE255405_OL.CTX.markers <- subset(GSE255405_OL, subset = area == "cortex"  & time == "P7") %>% FindAllMarkers(., test.use = "MAST", features = features)
+GSE255405_OL.CTX.markers <- GSE255405_OL.CTX.markers %>% filter(avg_log2FC > 0)
+GSE255405_OL.CTX.markers <- GSE255405_OL.CTX.markers %>%
+  mutate(comparison = "All_Cortex", group = "MinorGroups")
+
+
+GSE255405.markers <- rbind(GSE255405.SVZ.markers, GSE255405.ctx.markers, GSE255405_OL.SVZ.markers, GSE255405_OL.CTX.markers)
 
 
 # Does not work for Cortex P7
@@ -207,8 +216,6 @@ GSE255405.SVZ.markers <- rbind(GSE255405.SVZ.markers, GSE255405_OL.SVZ.markers)
 # Per area
 
 celltypes <- GSE255405@meta.data$MainGroups %>% unique()
-
-features <- c("Cnr1", "Cnr2", "Nr3c1", "Nr3c2")
 
 markers_area <- lapply(celltypes, function(cell){
   GSE <- subset(GSE255405, subset = time == "P7" & MainGroups == cell)
@@ -226,6 +233,7 @@ markers_area <- lapply(celltypes, function(cell){
 }) %>% Reduce(rbind, .)
 
 markers_area$comparison = "VSVZ_vs_Cortex"
+markers_area$group = "MainGroups"
 
 celltypes_OL <- GSE255405_OL@meta.data$MainGroups %>% unique()
 
@@ -244,26 +252,37 @@ markers_area_OL <- lapply(celltypes_OL, function(cell){
 }) %>% Reduce(rbind, .)
 
 markers_area_OL$comparison = "VSVZ_vs_Cortex"
+markers_area_OL$group = "MinorGroups"
 
-celltypes_OL_sub <- GSE255405_OL@meta.data$MinorGroups %>% unique()
+# Idents(GSE255405_OL) <- "MinorGroups"
+# 
+# celltypes_OL_sub <- GSE255405_OL@meta.data$MinorGroups %>% unique()
+# 
+# markers_area_OL_sub <- lapply(celltypes_OL_sub, function(cell){
+#   GSE <- subset(GSE255405_OL, subset = time == "P7" & MinorGroups == cell)
+#   GSE
+#   check <- GSE@meta.data %>% group_by(area) %>% tally() %>% select(n)
+#   if(nrow(check) == 1 | check[1,1] < 10 | check[2,1] < 10){
+#     return(data.frame())
+#   }
+#   tab <- GSE %>%
+#     FindMarkers(., ident.1 = "SVZ", ident.2 = "cortex", test.use = "negbinom", group.by = "area", features = features)
+#   tab$cluster = cell
+#   tab$gene = rownames(tab)
+#   return(tab)
+# }) %>% Reduce(rbind, .)
+# 
+# markers_area_OL_sub$comparison = "VSVZ_vs_Cortex"
+# 
+# markers_OL_sub.SVZ.markers <- subset(GSE255405_OL, subset = area == "SVZ"  & time == "P7") %>% FindAllMarkers(., test.use = "MAST", features = features)
+# markers_OL_sub.SVZ.markers <- markers_OL_sub.SVZ.markers %>% filter(avg_log2FC > 0)
+# markers_OL_sub.SVZ.markers <- markers_OL_sub.SVZ.markers %>% mutate(comparison = "All_V/SVZ")
+# 
+# markers_OL_sub.CTX.markers <- subset(GSE255405_OL, subset = area == "cortex"  & time == "P7") %>% FindAllMarkers(., test.use = "MAST", features = features)
+# markers_OL_sub.CTX.markers <- markers_OL_sub.CTX.markers %>% filter(avg_log2FC > 0)
+# markers_OL_sub.CTX.markers <- markers_OL_sub.CTX.markers %>% mutate(comparison = "All_Cortex")
 
-markers_area_OL_sub <- lapply(celltypes_OL_sub, function(cell){
-  GSE <- subset(GSE255405_OL, subset = time == "P7" & MinorGroups == cell)
-  GSE
-  check <- GSE@meta.data %>% group_by(area) %>% tally() %>% select(n)
-  if(nrow(check) == 1 | check[1,1] < 10 | check[2,1] < 10){
-    return(data.frame())
-  }
-  tab <- GSE %>%
-    FindMarkers(., ident.1 = "SVZ", ident.2 = "cortex", test.use = "MAST", group.by = "area", features = features)
-  tab$cluster = cell
-  tab$gene = rownames(tab)
-  return(tab)
-}) %>% Reduce(rbind, .)
-
-markers_area_OL_sub$comparison = "VSVZ_vs_Cortex"
-
-markers <- rbind(markers_ctx_p7, markers_vsvz_p7, markers_area, markers_area_OL, markers_area_OL_sub)
+markers <- rbind(GSE255405.markers, markers_area, markers_area_OL)
 
 saveRDS(markers, file = "All_comparisons.p7.markers.rds")
 
@@ -277,9 +296,35 @@ GSE255405 <- readRDS("GSE255405.rds")
 
 GSE255405_OL <- readRDS("GSE255405_OL.rds")
 
+valid_main_area <- GSE255405@meta.data %>%
+  group_by(MainGroups, area) %>%
+  tally(name = "n") %>%
+  filter(n >= 10) %>%
+  select(MainGroups, area)
+
+meta_main <- GSE255405@meta.data
+meta_main$cell <- rownames(meta_main)
+cells_keep_main <- meta_main %>%
+  semi_join(valid_main_area, by = c("MainGroups", "area")) %>%
+  pull(cell)
+GSE255405 <- subset(GSE255405, cells = cells_keep_main)
+
+valid_minor_area <- GSE255405_OL@meta.data %>%
+  group_by(MinorGroups, area) %>%
+  tally(name = "n") %>%
+  filter(n >= 10) %>%
+  select(MinorGroups, area)
+
+meta_minor <- GSE255405_OL@meta.data
+meta_minor$cell <- rownames(meta_minor)
+cells_keep_minor <- meta_minor %>%
+  semi_join(valid_minor_area, by = c("MinorGroups", "area")) %>%
+  pull(cell)
+GSE255405_OL <- subset(GSE255405_OL, cells = cells_keep_minor)
+
 markers <- readRDS("All_comparisons.p7.markers.rds")
 
-glu_genes <- c("Cnr1", "Cnr2", "Nr3c1", "Nr3c2")
+glu_genes <- c("Cnr1", "Cnr2", "Nr3c1", "Nr3c2", "Dagla", "Daglb", "Mgll", "Faah", "Napepld")
 
 ```
 
@@ -375,6 +420,10 @@ Dot plot showing expression of canonical marker genes across the main cell popul
 #| fig-width: 10
 #| fig-height: 5
 
+stats <- markers %>% filter(group == "MainGroups",
+                            comparison %in% c("All_V/SVZ", "All_Cortex"),
+                            p_val_adj < 0.05)
+
 # pdf("figures/nr3c1_cnrs.dotplot.ctx_vsvz.pdf", width = 8.5, height = 3.5)
 p1 <- subset(GSE255405, area != "SVZ" & time == "P2") %>%
 DotPlot(features = glu_genes, group.by = "MainGroups") + labs(title = "Cortex (P2)") +
@@ -387,12 +436,29 @@ DotPlot(features = glu_genes, group.by = "MainGroups") + labs(title = "Cortex (P
   theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
 # dev.off()
 
-p2 | p3
+# Extract data from dotplots
+d2 <- p2$data
+d3 <- p3$data
+
+# Add asterisk column
+d2 <- merge(d2, stats %>% filter(comparison == "All_V/SVZ"), by.x = c("id","features.plot"), by.y = c("cluster","gene"), all = T) %>% mutate(asterisk = ifelse(p_val_adj < 0.05, "*",""))
+
+d3 <- merge(d3, stats %>% filter(comparison == "All_Cortex"), by.x = c("id","features.plot"), by.y = c("cluster","gene"), all = T) %>% mutate(asterisk = ifelse(p_val_adj < 0.05, "*",""))
+
+d2 <- d2 %>% filter(!is.nan(avg.exp.scaled)) %>% mutate(asterisk = ifelse(is.na(asterisk), "", asterisk))
+d3 <- d3 %>% filter(!is.nan(avg.exp.scaled)) %>% mutate(asterisk = ifelse(is.na(asterisk), "", asterisk))
+
+# Rebuild plots with asterisk annotation
+library(ggplot2)
+p2_mod <- p2 + geom_text(data = d2[d2$asterisk == "*", ], aes(label = asterisk), vjust = 0.2, size = 7)
+p3_mod <- p3 + geom_text(data = d3[d3$asterisk == "*", ], aes(label = asterisk), vjust = 0.2, size = 7)
+
+p2_mod | p3_mod
 
 ```
 
 **Figure 3.**\
-Comparative dot plots illustrating the expression of glucocorticoid and cannabinoid signaling–related genes (*Cnr1*, *Cnr2*, *Nr3c1*, *Nr3c2*, *Ptges3*, *Ncor1*, *Cspg4*) in different brain regions and developmental stages.\
+Comparative dot plots illustrating the expression of glucocorticoid and cannabinoid signaling–related genes (**`r paste(glu_genes)`**) in different brain regions and developmental stages.\
 Panels show gene expression in (A) V/SVZ at P7, and (B) cortex at P7.\
 These profiles reveal developmental and spatial differences in the regulatory networks influencing oligodendrocyte lineage cells.
 
@@ -422,6 +488,10 @@ This representation highlights the transcriptional continuum from proliferative 
 #| fig-width: 10
 #| fig-height: 5
 
+stats <- markers %>% filter(group == "MinorGroups",
+                            comparison %in% c("All_V/SVZ", "All_Cortex"),
+                            p_val_adj < 0.05)
+
 # pdf("figures/nr3c1_cnrs.dotplot.ctx_vsvz.pdf", width = 8.5, height = 3.5)
 p1 <- subset(GSE255405_OL, area != "SVZ" & time == "P2") %>%
 DotPlot(features = glu_genes, group.by = "MinorGroups") + labs(title = "Cortex (P2)") +
@@ -434,19 +504,84 @@ DotPlot(features = glu_genes, group.by = "MinorGroups") + labs(title = "Cortex (
   theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
 # dev.off()
 
-p2 | p3
+# Extract data from dotplots
+d2 <- p2$data
+d3 <- p3$data
+
+# Add asterisk column
+d2 <- merge(d2, stats %>% filter(comparison == "All_V/SVZ"), by.x = c("id","features.plot"), by.y = c("cluster","gene"), all = T) %>% mutate(asterisk = ifelse(p_val_adj < 0.05, "*",""))
+
+d3 <- merge(d3, stats %>% filter(comparison == "All_Cortex"), by.x = c("id","features.plot"), by.y = c("cluster","gene"), all = T) %>% mutate(asterisk = ifelse(p_val_adj < 0.05, "*",""))
+
+d2 <- d2 %>% filter(!is.nan(avg.exp.scaled)) %>% mutate(asterisk = ifelse(is.na(asterisk), "", asterisk))
+d3 <- d3 %>% filter(!is.nan(avg.exp.scaled)) %>% mutate(asterisk = ifelse(is.na(asterisk), "", asterisk))
+
+# Rebuild plots with asterisk annotation
+p2_mod <- p2 + geom_text(data = d2[d2$asterisk == "*", ], aes(label = asterisk), vjust = 0.2, size = 7)
+p3_mod <- p3 + geom_text(data = d3[d3$asterisk == "*", ], aes(label = asterisk), vjust = 0.2, size = 7)
+
+p2_mod | p3_mod
 
 ```
 
 **Figure 5.**\
 Dot plot of glucocorticoid and cannabinoid-related genes across oligodendrocytes and OPCs subpopulations. Dot size corresponds to the proportion of cells expressing each gene, and color intensity reflects average expression level.
 
+```{r fig6}
+#| echo: false
+#| warning: false
+#| fig-width: 4
+#| fig-height: 3
+
+heatmap_base <- markers %>%
+  filter(comparison == "VSVZ_vs_Cortex") %>%
+  select(cluster, gene, p_val_adj, avg_log2FC) %>%
+  distinct(cluster, gene, .keep_all = TRUE)
+
+all_clusters <- sort(unique(heatmap_base$cluster))
+all_genes <- sort(unique(heatmap_base$gene))
+
+heatmap_data <- tidyr::expand_grid(cluster = all_clusters, gene = all_genes) %>%
+  left_join(heatmap_base, by = c("cluster", "gene")) %>%
+  mutate(
+    signif_label = ifelse(!is.na(p_val_adj) & p_val_adj < 0.05, "*", ""),
+    gene = factor(gene, levels = all_genes),
+    cluster = factor(cluster, levels = all_clusters)
+  )
+
+ggplot(heatmap_data, aes(x = gene, y = cluster, fill = avg_log2FC)) +
+  geom_tile(color = "black", linewidth = 0.2) +
+  geom_text(aes(label = signif_label), size = 5) +
+  scale_fill_gradient2(
+    low = "darkblue",
+    mid = "white",
+    high = "#d7191c",
+    midpoint = 0,
+    na.value = "darkgrey",
+    name = "avg_log2FC"
+  ) +
+  labs(
+    title = "VSVZ vs Cortex comparison",
+    x = "",
+    y = ""
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank()
+  )
+
+```
+
+**Figure 6.**\
+Heatmap of differential expression for the VSVZ vs Cortex comparison only in MainGroups. Color indicates `avg_log2FC` and asterisks (*) mark genes with adjusted p-value < 0.05.
+
 # Differential Gene Expression
 
 Table with all markers found within each Time + Area for subpopulations of OPCs + OLs.
 
 | **Column** | **Description** |
-|------------------|------------------------------------------------------|
+|--------------------|----------------------------------------------------|
 | **Gene** | The gene symbol or ID of the marker gene identified as differentially expressed. Each entry corresponds to one gene tested across clusters or groups. |
 | **Cluster** | The cell cluster (or subpopulation) in which the gene is more highly expressed compared to others. For example, a specific OPC or OL subtype. |
 | **Comparison** | The **comparison** where this cluster’s cells were sampled. |
