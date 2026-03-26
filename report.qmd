@@ -674,7 +674,7 @@ ggplot(mus_barnes, aes(x = gene_id, y = cell_type, fill = log2(1+median_value)))
     name = "log2(FPKM+1)"
   ) +
   labs(
-    title = "VSVZ vs Cortex comparison",
+    title = "Cortex P7 (Zhang et al, 2014)",
     x = "",
     y = ""
   ) +
