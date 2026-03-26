@@ -25,6 +25,7 @@ editor: visual
 
 library(Seurat)
 library(dplyr)
+library(tidyr)
 library(ggplot2)
 library(DT)
 
@@ -574,14 +575,14 @@ ggplot(heatmap_data, aes(x = gene, y = cluster, fill = avg_log2FC)) +
 ```
 
 **Figure 6.**\
-Heatmap of differential expression for the VSVZ vs Cortex comparison only in MainGroups. Color indicates `avg_log2FC` and asterisks (*) mark genes with adjusted p-value < 0.05.
+Heatmap of differential expression for the VSVZ vs Cortex comparison only in MainGroups. Color indicates `avg_log2FC` and asterisks (\*) mark genes with adjusted p-value \< 0.05.
 
 # Differential Gene Expression
 
 Table with all markers found within each Time + Area for subpopulations of OPCs + OLs.
 
 | **Column** | **Description** |
-|--------------------|----------------------------------------------------|
+|---------------------|---------------------------------------------------|
 | **Gene** | The gene symbol or ID of the marker gene identified as differentially expressed. Each entry corresponds to one gene tested across clusters or groups. |
 | **Cluster** | The cell cluster (or subpopulation) in which the gene is more highly expressed compared to others. For example, a specific OPC or OL subtype. |
 | **Comparison** | The **comparison** where this cluster’s cells were sampled. |
@@ -622,3 +623,68 @@ markers %>%
 **Table 1.**\
 List of marker genes identified for each OPC/OL subpopulation across different areas and developmental time points.\
 The table includes fold-change values, detection percentages, and adjusted p-values for statistical significance.
+
+## Barnes dataset
+
+Mouse data - Zhang et al. (2014) An RNA-sequencing transcriptome and splicing database of glia, neurons, and vascular cells of the cerebral cortex. J Neurosci 34(36):11929-11947. PMID: 25186741.
+
+```{r barnes}
+#| echo: false
+#| warning: false
+#| fig-width: 5
+#| fig-height: 3
+
+glu_genes <- c("Cnr1", "Cnr2", "Nr3c1", "Nr3c2", "Dagla", "Daglb", "Mgll", "Faah", "Napepld")
+
+# Mus_musculus - https://brainrnaseq.org/wp-content/uploads/2022/09/fe-wp-dataset-120.csv
+mus_barnes <- read.csv("barnes/fe-wp-dataset-120.csv")
+mus_barnes <- mus_barnes %>% filter(grepl(paste(glu_genes, collapse = "|"), gene_id)) %>%
+  mutate(gene_id = sub(" - .*", "", gene_id)) %>% select(-2)
+
+mus_barnes <- mus_barnes %>%
+  # Step 1: pivot to long format first
+  pivot_longer(
+    cols = -gene_id,
+    names_to = "cell_type",
+    values_to = "value"
+  ) %>%
+  # Step 2: remove replicate suffix (_1, _2, etc.)
+  mutate(cell_type = sub("_[0-9]+$", "", cell_type),
+             # rename nicely
+          cell_type = recode(cell_type,
+            "astrocytes" = "Astrocytes",
+            "neurons" = "Neurons",
+            "opc" = "OPC",
+            "newly_formed_oligodendrocyte" = "nfOligodendrocyte",
+            "myelinating_oligodendrocyte" = "mOligodendrocyte",
+            "endothelial" = "Endothelial",
+            "microglia_macrophage" = "Microglia/Macrophage")) %>%
+  # Step 3: compute median per gene + cell type
+  group_by(gene_id, cell_type) %>%
+  summarise(median_value = median(value, na.rm = TRUE), .groups = "drop")
+
+ggplot(mus_barnes, aes(x = gene_id, y = cell_type, fill = log2(1+median_value))) +
+  geom_tile(color = "black", linewidth = 0.2) +
+  scale_fill_gradient2(
+    low = "darkblue",
+    mid = "white",
+    high = "#d7191c",
+    midpoint = 0,
+    na.value = "darkgrey",
+    name = "log2(FPKM+1)"
+  ) +
+  labs(
+    title = "VSVZ vs Cortex comparison",
+    x = "",
+    y = ""
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank()
+  )
+
+```
+
+**Figure 7.**\
+Heatmap of P7 mouse brain cortex major groups. Color indicates `log2(FPKM+1)` values. nfOligodendrocyte (Newly formed oligodendrocytes) and mOligodendrocyte (Myelinating Oligodendrocytes).
