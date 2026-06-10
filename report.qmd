@@ -459,7 +459,7 @@ p2_mod | p3_mod
 ```
 
 **Figure 3.**\
-Comparative dot plots illustrating the expression of glucocorticoid and cannabinoid signaling–related genes (**`r paste(glu_genes)`**) in different brain regions and developmental stages.\
+Comparative dot plots illustrating the expression of glucocorticoid and cannabinoid signaling--related genes (**`r paste(glu_genes)`**) in different brain regions and developmental stages.\
 Panels show gene expression in (A) V/SVZ at P7, and (B) cortex at P7.\
 These profiles reveal developmental and spatial differences in the regulatory networks influencing oligodendrocyte lineage cells.
 
@@ -581,15 +581,15 @@ Heatmap of differential expression for the VSVZ vs Cortex comparison only in Mai
 
 Table with all markers found within each Time + Area for subpopulations of OPCs + OLs.
 
-| **Column** | **Description** |
-|---------------------|---------------------------------------------------|
-| **Gene** | The gene symbol or ID of the marker gene identified as differentially expressed. Each entry corresponds to one gene tested across clusters or groups. |
-| **Cluster** | The cell cluster (or subpopulation) in which the gene is more highly expressed compared to others. For example, a specific OPC or OL subtype. |
-| **Comparison** | The **comparison** where this cluster’s cells were sampled. |
-| **avg_log2FC** | The **average log₂ fold-change** in expression between cells in the cluster of interest and all other cells. Positive values indicate upregulation in this cluster; negative values indicate downregulation. |
-| **pct.1** | The **percentage of cells in the target cluster** where this gene is detected (nonzero expression). Higher values = more consistently expressed within the cluster. |
-| **pct.2** | The **percentage of cells in all other clusters** (combined) expressing the same gene. Used to assess specificity of expression. |
-| **p_val_adj** | The **adjusted p-value** (after multiple testing correction, e.g., Bonferroni or FDR) indicating the statistical significance of the differential expression. Smaller values = stronger evidence that the gene is a true marker. |
+| **Column**     | **Description**                                                                                                                                                                                                                  |
+|----------------------|--------------------------------------------------|
+| **Gene**       | The gene symbol or ID of the marker gene identified as differentially expressed. Each entry corresponds to one gene tested across clusters or groups.                                                                            |
+| **Cluster**    | The cell cluster (or subpopulation) in which the gene is more highly expressed compared to others. For example, a specific OPC or OL subtype.                                                                                    |
+| **Comparison** | The **comparison** where this cluster's cells were sampled.                                                                                                                                                                      |
+| **avg_log2FC** | The **average log₂ fold-change** in expression between cells in the cluster of interest and all other cells. Positive values indicate upregulation in this cluster; negative values indicate downregulation.                     |
+| **pct.1**      | The **percentage of cells in the target cluster** where this gene is detected (nonzero expression). Higher values = more consistently expressed within the cluster.                                                              |
+| **pct.2**      | The **percentage of cells in all other clusters** (combined) expressing the same gene. Used to assess specificity of expression.                                                                                                 |
+| **p_val_adj**  | The **adjusted p-value** (after multiple testing correction, e.g., Bonferroni or FDR) indicating the statistical significance of the differential expression. Smaller values = stronger evidence that the gene is a true marker. |
 
 ```{r tab1}
 #| echo: false

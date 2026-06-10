@@ -53,7 +53,7 @@ data <- data %>% mutate(
 ## Control-only
 
 ```{r permanova-dispersion, echo=FALSE}
-groups <- c("Control", "(-)Rimonabant", "(+)Win", "FAAH", "MAG", "DAG")
+groups <- c("Control", "(-)Rimonabant", "(+)Win", "FAAH", "DAG")
 
 data_filt <- data %>% filter(tipo %in% groups) %>%
   mutate(tipo = factor(tipo, levels = groups))
@@ -111,10 +111,10 @@ print(p1)
 ## Cortico-only
 
 ```{r permanova-dispersion2, echo=FALSE}
-groups <- c("Cort", "Cort(-)Rimonabant", "Cort(+)Win", "Cort(i)FAAH", "Cort(i)MAG", "Cort(i)DAG")
+groups2 <- c("Cort", "Cort(-)Rimonabant", "Cort(+)Win", "Cort(i)FAAH", "Cort(i)DAG")
 
-data_filt <- data %>% filter(tipo %in% groups) %>%
-  mutate(tipo = factor(tipo, levels = groups))
+data_filt <- data %>% filter(tipo %in% groups2) %>%
+  mutate(tipo = factor(tipo, levels = groups2))
 
 X <- data_filt %>% select(Prolongamento_norm, Index_complex_norm) %>% scale()
 dist_mat <- vegdist(X,  method = "euclidean")
@@ -138,8 +138,8 @@ pvals_long$tipo <- gsub("Cort-", "", pvals_long$tipo)
 ```
 
 ```{r cluster-plot-density2d2, fig.width=8, fig.height=6, fig.dpi=300, echo=FALSE}
-p2 <- data %>% merge(., pvals_long, all = T) %>% filter(tipo %in% groups) %>%
-  mutate(tipo = factor(tipo, levels = groups)) %>%
+p2 <- data %>% merge(., pvals_long, all = T) %>% filter(tipo %in% groups2) %>%
+  mutate(tipo = factor(tipo, levels = groups2)) %>%
   ggplot(aes(x = Prolongamento_norm, y = Index_complex_norm)) +
   geom_point(size = 1) +
   stat_density_2d(
@@ -169,7 +169,7 @@ print(p2)
 ## Overall
 
 ```{r all-cluster-plot-density, fig.width=14, fig.height=6, fig.dpi=300, echo=FALSE}
-p3 <- data %>%
+p3 <- data %>% filter(tipo %in% c(groups, groups2)) %>%
   ggplot(aes(x = Prolongamento_norm, y = Index_complex_norm)) +
   geom_point(size = 1) +
   stat_density_2d(
