@@ -355,14 +355,14 @@ Cell types were annotated following mostly protocol established by Dennis et al 
 
 
 
-p1 <- subset(GSE255405, subset = time == "P7") %>% 
+p1 <- subset(GSE255405, subset = time == "P7" & area == "SVZ") %>% 
   DimPlot(., group.by = "MainGroups", pt.size = 1) + theme(axis.title = element_blank())
-p2 <- subset(GSE255405, subset = time == "P7") %>%
+p2 <- subset(GSE255405, subset = time == "P7" & area == "SVZ") %>%
   DimPlot(., group.by = "RNA_snn_res.0.1", pt.size = 1) + theme(axis.title = element_blank()) +
   labs(title = "Cluster")
-p3 <- subset(GSE255405, subset = time == "P7") %>%
+p3 <- subset(GSE255405, subset = time == "P7" & area == "SVZ") %>%
   DimPlot(., group.by = "area", pt.size = 1) + theme(axis.title = element_blank())
-p4 <- subset(GSE255405, subset = time == "P7") %>%
+p4 <- subset(GSE255405, subset = time == "P7" & area == "SVZ") %>%
   DimPlot(., group.by = "Phase", pt.size = 1) + theme(axis.title = element_blank())
 
 p <- cowplot::plot_grid(plotlist = list(p1, p2, p3, p4))
@@ -401,12 +401,12 @@ This overview highlights the main neural and glial populations identified in the
 #| fig-width: 8
 #| fig-height: 5
 
-p <- subset(GSE255405, subset = time == "P7") %>%
+p <- subset(GSE255405, subset = time == "P7" & area == "SVZ") %>%
   DotPlot(., group.by = "MainGroups", features = c("Aldh1l1", "Aqp4", "Foxj1", "Pecam1", "Syt4", "Tbr1",  "Sp8", "Gad1", "Gad2", "Aif1",  "Vnn1", "Sox2", "Vim", "Enpp6", "Mog",  "Pdgfra", "Vtn", "Ascl1")) +
   theme(axis.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
 
 # pdf("figures/markers.dotplot.ctx_vsvz.pdf", width = 8, height = 3.5)
-p + labs(title = "V/SVZ + Cortex (P7) - Markers")
+p + labs(title = "V/SVZ (P7) - Markers")
 # dev.off()
 
 
@@ -418,7 +418,7 @@ Dot plot showing expression of canonical marker genes across the main cell popul
 ```{r fig3}
 #| echo: false
 #| warning: false
-#| fig-width: 10
+#| fig-width: 5
 #| fig-height: 5
 
 stats <- markers %>% filter(group == "MainGroups",
@@ -454,7 +454,7 @@ library(ggplot2)
 p2_mod <- p2 + geom_text(data = d2[d2$asterisk == "*", ], aes(label = asterisk), vjust = 0.2, size = 7)
 p3_mod <- p3 + geom_text(data = d3[d3$asterisk == "*", ], aes(label = asterisk), vjust = 0.2, size = 7)
 
-p2_mod | p3_mod
+p2_mod # | p3_mod
 
 ```
 
@@ -471,8 +471,10 @@ These profiles reveal developmental and spatial differences in the regulatory ne
 #| fig-width: 12
 #| fig-height: 5
 
-p <- subset(GSE255405_OL, time == "P7") %>%
-  DimPlot(., group.by = "area", label = T, pt.size = 1) | DimPlot(GSE255405_OL, group.by = "MainGroups", pt.size = 1) | DimPlot(GSE255405_OL, group.by = "MinorGroups", pt.size = 1)
+p <- subset(GSE255405_OL, time == "P7" & area == "SVZ") %>%
+  DimPlot(., group.by = "area", label = T, pt.size = 1) |
+  subset(GSE255405_OL, time == "P7" & area == "SVZ") %>% DimPlot(., group.by = "MainGroups", pt.size = 1) |
+  subset(GSE255405_OL, time == "P7" & area == "SVZ") %>% DimPlot(., group.by = "MinorGroups", pt.size = 1)
 
 p
 
@@ -486,7 +488,7 @@ This representation highlights the transcriptional continuum from proliferative 
 ```{r fig5}
 #| echo: false
 #| warning: false
-#| fig-width: 10
+#| fig-width: 5
 #| fig-height: 5
 
 stats <- markers %>% filter(group == "MinorGroups",
@@ -521,7 +523,7 @@ d3 <- d3 %>% filter(!is.nan(avg.exp.scaled)) %>% mutate(asterisk = ifelse(is.na(
 p2_mod <- p2 + geom_text(data = d2[d2$asterisk == "*", ], aes(label = asterisk), vjust = 0.2, size = 7)
 p3_mod <- p3 + geom_text(data = d3[d3$asterisk == "*", ], aes(label = asterisk), vjust = 0.2, size = 7)
 
-p2_mod | p3_mod
+p2_mod # | p3_mod
 
 ```
 
